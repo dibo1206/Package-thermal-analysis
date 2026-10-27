@@ -1,3 +1,7 @@
 __pycache__/
 *.pyc
 .venv/
+.env
+*.key
+*.pem
+data/*_run.out

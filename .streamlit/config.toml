@@ -1,0 +1,16 @@
+# 화면 테마. 저장소 루트에서 `streamlit run app/streamlit_app.py` 로 실행할 때 읽힌다.
+[theme]
+base = "light"
+primaryColor = "#eb6834"
+backgroundColor = "#fcfcfb"
+secondaryBackgroundColor = "#f3f2ee"
+textColor = "#0b0b0b"
+
+[client]
+toolbarMode = "viewer"
+
+[ui]
+hideTopBar = true
+
+[browser]
+gatherUsageStats = false
