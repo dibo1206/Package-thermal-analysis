@@ -338,6 +338,51 @@ class Surrogate:
             out["first_over"] = {"size_mm": conds[k + 1]["void_mm"], "upper": float(upper[k + 1])}
         return out
 
+    # ── 규격 판정 vs 실제 위험 ──
+
+    def spec_map(self, base, limit=None):
+        """위험 지도의 칸마다 규격 판정과 실제 판정을 합친 번호(SPEC_CLASSES)를 붙인다."""
+        limit = RISE_LIMIT if limit is None else limit
+        rm = self.risk_map(base)
+        cls = classify(rm["sizes"][:, None], rm["dT"], rm["half95"], limit)
+        counts = {name: int((cls == k).sum()) for k, name in enumerate(SPEC_CLASSES)}
+        return dict(rm, cls=cls, counts=counts, n=int((cls >= 0).sum()), limit=float(limit))
+
+
+# ── 규격 판정 (docs/validation-log.md, 2026-11-08 사전 등록) ──────
+# MIL-STD-883G Method 2012.7 의 다이 접합 보이드 기준을 TIM 보이드에 '비유로' 적용한다.
+# 2D 단면에서는 보이드가 깊이 방향 띠라서 항상 소자를 가로지른다 → 면적 비율 = 보이드 폭 / 다이 폭.
+
+SPEC_SINGLE = 0.10       # 가로지르는 단일 보이드가 접촉 면적의 10% 초과면 불합격
+SPEC_TOTAL = 0.50        # 보이드 합이 접촉 면적의 절반 초과면 불합격
+RISE_LIMIT = 2.0         # 실제 위험 기준: 보이드 때문에 오른 온도 [℃] (사용자 결정)
+SPEC_CLASSES = ["둘 다 합격", "놓친 위험", "괜한 불량", "둘 다 불합격", "판정 보류"]
+
+
+def spec_fail(void_mm):
+    """규격 판정. True = 불합격. 정확히 10% 는 '초과' 가 아니라 합격."""
+    frac = np.asarray(void_mm, dtype=float) / WIDTH_MM
+    return (frac > SPEC_SINGLE + _EPS) | (frac > SPEC_TOTAL + _EPS)
+
+
+def classify(void_mm, dT, half, limit=RISE_LIMIT):
+    """규격 판정 × 실제 판정 → SPEC_CLASSES 번호 (0~4). 다이 밖(NaN) 칸은 -1.
+
+    실제 판정: ΔT − 반폭 > limit 이면 위험, ΔT + 반폭 ≤ limit 이면 안전, 그 사이는 보류.
+    """
+    dT = np.asarray(dT, dtype=float)
+    half = np.asarray(half, dtype=float)
+    fail = np.broadcast_to(spec_fail(void_mm), dT.shape)
+    danger = dT - half > limit
+    safe = dT + half <= limit
+    out = np.full(dT.shape, 4)
+    out[safe & ~fail] = 0
+    out[danger & ~fail] = 1
+    out[safe & fail] = 2
+    out[danger & fail] = 3
+    out[~np.isfinite(dT)] = -1
+    return out
+
 
 # ── 2D 해석 (정답 확인) ──────────────────────────────────────
 

@@ -32,6 +32,8 @@ ACCENT, ACCENT_TEXT = "#eb6834", "#b8471a"
 BLUE = "#2a78d6"                     # 그래프에서 두 번째 계열이 필요할 때만 (AI 예측 선)
 CRITICAL = "#d03b3b"
 HEAT = [[0.0, "#fdf1ea"], [0.25, "#f8c9ad"], [0.5, "#f19566"], [0.75, "#eb6834"], [1.0, "#8c2f0b"]]
+# 규격 vs 실제 (M.SPEC_CLASSES 순서). 두 판정이 같은 칸은 회색, 엇갈린 칸만 색을 쓴다
+SPEC_COLORS = ["#ecebe6", CRITICAL, BLUE, "#c9c7bf", SURFACE]
 SANS = "Pretendard, 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif"
 MONO = "'JetBrains Mono', ui-monospace, monospace"
 
@@ -143,6 +145,8 @@ html, body, [class*="st-"], .stMarkdown, button, input, textarea {
 .tbl td.n { font-family:var(--mono); text-align:right; }
 .tbl th.n { text-align:right; }
 .tbl tr:nth-child(even) td { background: var(--panel); }
+.sw { display:inline-block; width:11px; height:11px; border-radius:2px; margin-right:8px; vertical-align:-1px;
+  border:1px solid var(--grid); }
 
 .checks { display:grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 16px; }
 .check-card { background: var(--panel); border-radius: var(--r); padding: 16px 18px; }
@@ -211,9 +215,20 @@ def get_validation():
     return M.load_validation()
 
 
+@st.cache_data
+def get_spec_check():
+    """spec_check.py 가 남긴 확인 결과 (규격 vs 실제의 엇갈린 칸을 실제 해석으로 확인). 없으면 None."""
+    path = M.os.path.join(M.ROOT, "data", "spec_check.json")
+    if not M.os.path.exists(path):
+        return None
+    with open(path, encoding="utf-8") as f:
+        return M.json.load(f)
+
+
 st.markdown(CSS, unsafe_allow_html=True)
 s = get_model()
 V = get_validation()
+SC = get_spec_check()
 
 
 # ── 머리 ──────────────────────────────────────────────────────
@@ -363,9 +378,9 @@ with top:
 # ── 보기 전환 ─────────────────────────────────────────────────
 
 st.write("")
-VIEWS = ["정답 확인", "보이드 위험 지도", "허용 보이드 크기", "검증과 방법"]
+VIEWS = ["정답 확인", "보이드 위험 지도", "허용 보이드 크기", "규격 vs 실제", "검증과 방법"]
 if st.query_params.get("view") == "method":           # 머리의 '방법과 검증' 링크
-    st.session_state.view = VIEWS[3]
+    st.session_state.view = VIEWS[-1]
     del st.query_params["view"]
 view = st.radio("보기", VIEWS, horizontal=True, label_visibility="collapsed", key="view")
 
@@ -578,7 +593,81 @@ elif view == "허용 보이드 크기":
              '여유 평균 {:.2f}℃.</div>'.format(iv["n_checked"], iv["n_safe"], iv["margin_mean"]))
 
 
-# 보기 4: 검증과 방법
+# 보기 4: 규격 vs 실제
+
+elif view == "규격 vs 실제":
+    html('<p class="lead">업계 검사 규격은 보이드의 <b>면적</b>만 봅니다. 같은 보이드를 규격과 <b>예측 온도 상승</b>으로 '
+         '따로 판정해, 둘이 엇갈리는 곳을 칠합니다. 보이드 외의 조건은 위 패널 값을 따릅니다.</p>')
+    i1, i2 = st.columns([1, 2], gap="large")
+    limit = i1.number_input("위험 기준: 보이드로 오른 온도 (℃)", min_value=0.5, max_value=20.0,
+                            value=M.RISE_LIMIT, step=0.5, key="spec_limit")
+    with i2:
+        html('<div class="cap" style="padding-top:8px">규격: MIL-STD-883 Method 2012.7 의 다이 접합 기준을 TIM 보이드에 '
+             '<b>비유로</b> 적용합니다. 소자를 가로지르는 단일 보이드가 면적 {:.0%}를 넘으면 불합격. 2D 단면에서는 보이드가 '
+             '깊이 방향 띠라 늘 가로지르므로 <b>폭 {:g} mm 초과면 불합격</b>입니다. 실제: AI 95% 범위가 기준에 걸치면 '
+             '판정 보류(×).</div>'.format(M.SPEC_SINGLE, M.SPEC_SINGLE * M.WIDTH_MM))
+
+    sm = s.spec_map(cond, limit)
+    cnt, n, cls = sm["counts"], sm["n"], sm["cls"]
+    miss, waste = cnt["놓친 위험"], cnt["괜한 불량"]
+    html('<div class="answer">이 조건에서 규격은 칸의 <span class="num">{:.0%}</span>를 괜히 불합격시키고, {}</div>'.format(
+        waste / n, '<span class="num">{:.1%}</span>의 위험을 놓칩니다.'.format(miss / n) if miss else "놓치는 위험은 없습니다."))
+
+    k = len(M.SPEC_CLASSES)
+    scale = [stop for i, c in enumerate(SPEC_COLORS) for stop in ([i / k, c], [(i + 1) / k, c])]
+    names = np.array(M.SPEC_CLASSES + [""])[cls]                 # -1(다이 밖) → 마지막 빈 이름
+    fmt = np.vectorize(lambda v, f: f.format(v) if np.isfinite(v) else "", excluded={1})
+    custom = np.dstack([names, fmt(sm["dT"], "{:+.2f}"), fmt(sm["half95"], "{:.2f}")])
+    fig = go.Figure(go.Heatmap(z=np.where(cls >= 0, cls, np.nan).astype(float), x=sm["positions"], y=sm["sizes"],
+                               zmin=-0.5, zmax=k - 0.5, colorscale=scale, showscale=False, customdata=custom,
+                               hovertemplate="위치 %{x:.2f}mm, 폭 %{y:.2f}mm<br><b>%{customdata[0]}</b><br>"
+                                             "상승 %{customdata[1]}℃ (±%{customdata[2]})<extra></extra>"))
+    hold = np.argwhere(cls == M.SPEC_CLASSES.index("판정 보류"))
+    if len(hold):
+        fig.add_trace(go.Scatter(x=sm["positions"][hold[:, 1]], y=sm["sizes"][hold[:, 0]], mode="markers",
+                                 marker=dict(symbol="x-thin", size=6, line=dict(width=1, color=INK2)),
+                                 hoverinfo="skip", showlegend=False))
+    edge = M.SPEC_SINGLE * M.WIDTH_MM
+    fig.add_hline(y=edge, line=dict(color=INK, width=1, dash="dash"))
+    fig.add_annotation(x=M.WIDTH_MM, y=edge, text="규격 문턱 {:g} mm (면적 {:.0%})".format(edge, M.SPEC_SINGLE),
+                       showarrow=False, xanchor="right", yanchor="bottom", font=dict(size=11.5, color=INK))
+    fig.add_vrect(x0=M.SPOT_CENTER_MM - cond["spot_mm"] / 2, x1=M.SPOT_CENTER_MM + cond["spot_mm"] / 2,
+                  line=dict(color=INK, width=1, dash="dot"), fillcolor="rgba(0,0,0,0)",
+                  annotation_text="핫스팟", annotation_position="top",
+                  annotation_font=dict(size=11.5, color=INK))
+    if cond["void_mm"] > 0:
+        fig.add_trace(go.Scatter(x=[cond["void_center_mm"]], y=[cond["void_mm"]], mode="markers",
+                                 marker=dict(symbol="diamond", size=12, color=INK, line=dict(width=2, color=SURFACE)),
+                                 showlegend=False, hovertemplate="지금 넣은 보이드<extra></extra>"))
+    style(fig, 460)
+    fig.update_xaxes(title=dict(text="보이드 위치 (mm, 다이 왼쪽 끝 기준)", font=dict(size=12)))
+    fig.update_yaxes(title=dict(text="보이드 폭 (mm)", font=dict(size=12)))
+    chart(fig)
+
+    a, b = st.columns(2, gap="large")
+    with a:
+        rows = "".join('<tr><td><span class="sw" style="background:{}"></span>{}</td><td class="n">{:,}</td>'
+                       '<td class="n">{:.1%}</td></tr>'.format(c, esc(name), cnt[name], cnt[name] / n)
+                       for name, c in zip(M.SPEC_CLASSES, SPEC_COLORS))
+        html('<table class="tbl"><tr><th>칸</th><th class="n">수</th><th class="n">비율</th></tr>{}</table>'.format(rows))
+        html('<div class="cap">위치 × 폭 격자 {:,}칸의 비율입니다. 실제 보이드가 어디에 얼마나 생기는지 모르므로 '
+             '칩 불량률로 읽으면 안 됩니다.</div>'.format(n))
+    with b:
+        if SC:
+            p = SC["picked"]
+            hit = {name: (sum(r["agree"] for r in p.get(name, [])), len(p.get(name, []))) for name in ("놓친 위험", "괜한 불량")}
+            under = [r["true_dT"] - r["pred_dT"] for r in p.get("놓친 위험", [])]
+            txt = ("실제 2D 해석으로 확인 (기본 조건, +{:g}℃ 기준, 무작위 seed {}). 놓친 위험 칸 {}/{}칸이 실제로도 위험, "
+                   "괜한 불량 칸 {}/{}칸이 실제로도 안전했습니다.").format(
+                SC["limit"], SC["seed"], *hit["놓친 위험"], *hit["괜한 불량"])
+            if under:
+                txt += " 놓친 위험 칸에서 AI는 실제보다 평균 {:.1f}℃ 낮게 예측했습니다(실제 위험이 더 큼).".format(np.mean(under))
+            html('<div class="note info">{}</div>'.format(esc(txt)))
+        html('<div class="cap" style="margin-top:10px">규격은 원래 다이 접합층용입니다. 여기서는 TIM 보이드에 비유로 적용했고, '
+             '2D 단면이라 보이드 영향이 실제 원형 보이드보다 크게 나옵니다.</div>')
+
+
+# 보기 5: 검증과 방법
 
 else:
     a, b = st.columns([5, 7], gap="large")
@@ -591,7 +680,7 @@ else:
             html('<div class="note info">검증 결과 파일이 없습니다. python app/validate_backend.py 를 실행하세요.</div>')
     with b:
         html("""<p class="lead">다이(Si 0.1mm), TIM, 리드(Cu 1mm) 단면을 0.025mm 격자로 나눈 <b>2D 열해석</b>이 정답 역할을 합니다.
-        해석기는 발표된 확산 저항 해석해와 0.03% 이내로 일치합니다. 조건 7개를 바꾼 해석 800건으로
+        해석기는 해석해가 있는 1·2층 구조에서 발표된 확산 저항 해석해와 0.11% 이내로 일치합니다. 조건 7개를 바꾼 해석 800건으로
         <b>최고 온도 = 1D 공식 + 발열 × AI가 배운 1W당 추가 온도</b> 모델을 학습했습니다.</p>""")
 
     if V:

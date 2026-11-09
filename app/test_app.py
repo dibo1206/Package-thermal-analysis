@@ -3,7 +3,8 @@
   python app/test_app.py
 
 확인하는 것
-  - 기본 조건으로 열면 오류 없이 그려지고, 사이드바가 없고, 보기 네 개를 모두 열 수 있다
+  - 기본 조건으로 열면 오류 없이 그려지고, 사이드바가 없고, 보기 다섯 개를 모두 열 수 있다
+  - 규격 vs 실제 보기의 비율이 model.py 를 직접 부른 값과 같고, 위험 기준을 바꿔도 오류가 없다
   - 보이드를 켜고 핫스팟 위로 옮기면 경고가 뜬다
   - 정답 확인 버튼이 해석을 돌리고 기록을 남긴다
   - 보이드 폭을 키워 위치가 범위를 벗어나도 오류 없이 안으로 옮겨진다
@@ -58,7 +59,7 @@ def main():
     at = AppTest.from_file(APP, default_timeout=TIMEOUT).run()
     no_exception(at, "처음 열기")
     view = at.radio(key="view")
-    check("보기 4개", len(view.options) == 4, str(view.options))
+    check("보기 5개", len(view.options) == 5, str(view.options))
     check("사이드바를 쓰지 않는다", len(at.sidebar.children) == 0)
 
     s = M.Surrogate()
@@ -103,6 +104,15 @@ def main():
         at.radio(key="view").set_value(name).run()
         no_exception(at, name + " 보기")
     check("검증 보기에 점수가 나온다", 'class="score"' in texts(at))
+
+    # 규격 vs 실제 보기 (지도는 보이드 값을 무시하므로 기본 조건과 같은 답이어야 한다)
+    at.radio(key="view").set_value("규격 vs 실제").run()
+    no_exception(at, "규격 vs 실제 보기")
+    sm = s.spec_map(M.DEFAULT)
+    want = '<span class="num">{:.0%}</span>를 괜히 불합격'.format(sm["counts"]["괜한 불량"] / sm["n"])
+    check("규격 vs 실제 비율이 model.py 와 같다", want in texts(at), want)
+    at.number_input(key="spec_limit").set_value(5.0).run()
+    no_exception(at, "위험 기준 5℃")
 
     # 허용 보이드 보기
     at.radio(key="view").set_value("허용 보이드 크기").run()
