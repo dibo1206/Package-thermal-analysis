@@ -3,7 +3,8 @@
   python app/test_app.py
 
 확인하는 것
-  - 기본 조건으로 열면 오류 없이 그려지고, 사이드바가 없고, 보기 다섯 개를 모두 열 수 있다
+  - 기본 조건으로 열면 오류 없이 그려지고, 사이드바가 없고, 보기 여덟 개를 모두 열 수 있다
+  - 딥러닝 비교·민감도 분석·AI에게 묻기 보기가 열린다 (LLM 은 부르지 않는다)
   - 규격 vs 실제 보기의 비율이 model.py 를 직접 부른 값과 같고, 위험 기준을 바꿔도 오류가 없다
   - 보이드를 켜고 핫스팟 위로 옮기면 경고가 뜬다
   - 정답 확인 버튼이 해석을 돌리고 기록을 남긴다
@@ -59,7 +60,7 @@ def main():
     at = AppTest.from_file(APP, default_timeout=TIMEOUT).run()
     no_exception(at, "처음 열기")
     view = at.radio(key="view")
-    check("보기 5개", len(view.options) == 5, str(view.options))
+    check("보기 8개", len(view.options) == 8, str(view.options))
     check("사이드바를 쓰지 않는다", len(at.sidebar.children) == 0)
 
     s = M.Surrogate()

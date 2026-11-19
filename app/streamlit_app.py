@@ -225,6 +225,26 @@ def get_spec_check():
         return M.json.load(f)
 
 
+def load_json(name):
+    """data/ 의 결과 파일. 없으면 None."""
+    path = M.os.path.join(M.ROOT, "data", name)
+    if not M.os.path.exists(path):
+        return None
+    with open(path, encoding="utf-8") as f:
+        return M.json.load(f)
+
+
+@st.cache_resource(show_spinner="신경망 학습 중 (몇 초)")
+def get_nn():
+    """nn_compare.py 가 교차검증으로 고른 설정으로 학습 640건에 신경망을 학습한다 (시드 0)."""
+    import nn_compare as N
+    setting = load_json("nn_compare.json")["nn_with_1d"]["setting"]
+    train = get_model().train
+    net = N.NN(tuple(setting["hidden"]), setting["alpha"], N.SEEDS[0]).fit(
+        N.x_with_baseline(train), N.y_with_baseline(train))
+    return N, net
+
+
 st.markdown(CSS, unsafe_allow_html=True)
 s = get_model()
 V = get_validation()
@@ -378,7 +398,8 @@ with top:
 # ── 보기 전환 ─────────────────────────────────────────────────
 
 st.write("")
-VIEWS = ["정답 확인", "보이드 위험 지도", "허용 보이드 크기", "규격 vs 실제", "검증과 방법"]
+VIEWS = ["정답 확인", "보이드 위험 지도", "허용 보이드 크기", "규격 vs 실제",
+         "딥러닝 비교", "민감도 분석", "AI에게 묻기", "검증과 방법"]
 if st.query_params.get("view") == "method":           # 머리의 '방법과 검증' 링크
     st.session_state.view = VIEWS[-1]
     del st.query_params["view"]
@@ -667,7 +688,181 @@ elif view == "규격 vs 실제":
              '2D 단면이라 보이드 영향이 실제 원형 보이드보다 크게 나옵니다.</div>')
 
 
-# 보기 5: 검증과 방법
+# 보기 5: 딥러닝 비교 (nn_compare.py)
+
+elif view == "딥러닝 비교":
+    NC = load_json("nn_compare.json")
+    if not NC:
+        html('<div class="note info">결과 파일이 없습니다. python app/nn_compare.py 를 실행하세요.</div>')
+        st.stop()
+    gp, nb, nd = NC["gp_v2"], NC["nn_with_1d"], NC["nn_direct"]
+    html('<p class="lead"><b>머신러닝(가우시안 과정)</b>과 <b>딥러닝(은닉층 3개 신경망)</b>을 같은 학습 {}건, 같은 입력, '
+         '학습에 쓰지 않은 같은 새 조건 {}건으로 비교했습니다. 신경망 설정은 학습 데이터 교차검증으로만 골랐습니다.</p>'.format(
+             NC["n_train"], NC["n_fresh"]))
+    html("""<div class="trio">
+      <div>가우시안 과정 + 1D (머신러닝)<b>{:.2f} ℃</b></div>
+      <div>신경망 + 1D (딥러닝)<b>{:.2f} ℃</b></div>
+      <div>신경망 단독 (1D 없이)<b>{:.2f} ℃</b></div></div>
+      <div class="cap">새 조건 {}건의 평균 오차. 신경망은 시작값이 무작위라 시드 5개로 학습한 평균입니다.</div>""".format(
+        gp["fresh_mae"], nb["fresh_mae_mean"], nd["fresh_mae_mean"], NC["n_fresh"]))
+    html('<div class="note">1D 열저항 공식을 기준선으로 주면 같은 신경망의 오차가 <b>{:.2f}℃ → {:.2f}℃</b>, 약 {:.1f}배 줄었습니다. '
+         '데이터가 {}건으로 적어서 가우시안 과정이 신경망보다 조금 더 정확했습니다.</div>'.format(
+             nd["fresh_mae_mean"], nb["fresh_mae_mean"], nd["fresh_mae_mean"] / nb["fresh_mae_mean"], NC["n_train"]))
+
+    a, b = st.columns(2, gap="large")
+    with a:
+        html('<div class="sec">새 조건 평균 오차</div><div class="cap">막대 끝 선은 시드 5개의 최소~최대.</div>')
+        names = ["가우시안 과정 + 1D", "신경망 + 1D", "신경망 단독"]
+        vals = [gp["fresh_mae"], nb["fresh_mae_mean"], nd["fresh_mae_mean"]]
+        lo = [0.0, nb["fresh_mae_mean"] - nb["fresh_mae_min"], nd["fresh_mae_mean"] - nd["fresh_mae_min"]]
+        hi = [0.0, nb["fresh_mae_max"] - nb["fresh_mae_mean"], nd["fresh_mae_max"] - nd["fresh_mae_mean"]]
+        fig = go.Figure(go.Bar(x=vals, y=names, orientation="h", marker_color=[ACCENT, BLUE, "#a8a7a1"],
+                               error_x=dict(type="data", array=hi, arrayminus=lo, color=INK2, thickness=1.2, width=5),
+                               text=["{:.2f}℃".format(v) for v in vals], textposition="outside",
+                               cliponaxis=False, hovertemplate="%{y}: %{x:.3f}℃<extra></extra>"))
+        style(fig, 260)
+        fig.update_yaxes(autorange="reversed")
+        fig.update_xaxes(title=dict(text="평균 절대 오차 (℃)", font=dict(size=12)), range=[0, max(vals) * 1.3])
+        chart(fig)
+    with b:
+        html('<div class="sec">규제 세기와 교차검증 오차</div>'
+             '<div class="cap">신경망 + 1D. 규제가 약하면 학습 데이터를 외워서 오차가 커집니다.</div>')
+        fig = go.Figure()
+        for hidden, color in ((32, "#86b6ef"), (64, BLUE)):
+            rows = [r for r in nb["cv_table"] if r["hidden"][0] == hidden]
+            fig.add_trace(go.Scatter(x=[r["alpha"] for r in rows], y=[r["cv_mae"] for r in rows], mode="lines+markers",
+                                     name="층마다 {}개".format(hidden), line=dict(color=color, width=2),
+                                     hovertemplate="규제 %{x:g}: %{y:.3f}℃<extra></extra>"))
+        style(fig, 260, legend=True)
+        fig.update_xaxes(type="log", title=dict(text="규제 세기 (alpha)", font=dict(size=12)))
+        fig.update_yaxes(title=dict(text="교차검증 오차 (℃)", font=dict(size=12)))
+        chart(fig)
+
+    html('<div class="sec">지금 조건에서 두 모델 비교</div>'
+         '<div class="cap">위 조건 패널 값으로 두 모델이 각각 예측합니다. 실제 2D 해석으로 누가 더 가까운지 확인할 수 있습니다.</div>')
+    N, net = get_nn()
+    nn_t = float(N.to_t_max([dict(cond, t_1d=pred["t_1d"])],
+                            net.predict(N.x_with_baseline([cond])), True)[0])
+    real = st.session_state.get("nn_real")
+    real_t = real["t"] if real and real["cond"] == cond else None
+    html("""<div class="trio">
+      <div>가우시안 과정 예측<b>{:.2f} ℃</b></div>
+      <div>신경망 예측<b>{:.2f} ℃</b></div>
+      <div>실제 2D 해석<b>{}</b></div></div>""".format(
+        pred["t_max"], nn_t, "{:.2f} ℃".format(real_t) if real_t is not None else "—"))
+    if st.button("2D 해석으로 확인", type="primary", key="nn_check"):
+        with st.spinner("2D 해석 중"):
+            st.session_state.nn_real = {"cond": cond, "t": M.run_2d(cond)["t_max"]}
+        st.rerun()
+    if real_t is not None:
+        html('<div class="cap">오차: 가우시안 과정 {:+.2f}℃, 신경망 {:+.2f}℃</div>'.format(
+            round(pred["t_max"] - real_t, 2) + 0.0, round(nn_t - real_t, 2) + 0.0))   # +0.0: -0.00 방지
+    html('<div class="cap" style="margin-top:10px">한계: 신경망 크기는 두 가지(층마다 32·64개)만 시험했습니다. '
+         '더 찾으면 신경망이 나아질 수 있습니다.</div>')
+
+
+# 보기 6: 민감도 분석 (sensitivity.py)
+
+elif view == "민감도 분석":
+    SE = load_json("sensitivity.json")
+    if not SE:
+        html('<div class="note info">결과 파일이 없습니다. python app/sensitivity.py 를 실행하세요.</div>')
+        st.stop()
+    html('<p class="lead"><b>설명 가능한 AI (순열 중요도).</b> 새 조건 {}건에서 입력 하나만 행끼리 무작위로 섞고, '
+         '예측 오차가 얼마나 늘어나는지 잽니다. 많이 늘수록 모델이 그 입력에 많이 기댑니다. 입력마다 {}번 섞은 평균입니다.</p>'.format(
+             list(SE["groups"].values())[0], SE["repeats"]))
+    i1, i2 = st.columns([1, 1], gap="large")
+    model_name = i1.radio("모델", [k for k in SE if k.startswith(("A ", "B "))], horizontal=True, key="se_model")
+    mode = i2.radio("보기", ["ML만", "전체"], horizontal=True, key="se_mode",
+                    help="ML만: 1D 값을 고정하고 머신러닝이 배운 '추가 온도' 만 봅니다. 전체: 1D 공식까지 포함합니다.")
+    res = SE[model_name]["rise"]["ml_only" if mode == "ML만" else "full"]
+    groups = list(SE["groups"].keys())
+    g_all, g_ov, g_rest = groups
+    order = sorted(res, key=lambda k: res[k][g_all])
+
+    fig = go.Figure()
+    for g, color in ((g_ov, ACCENT), (g_rest, "#a8a7a1")):
+        fig.add_trace(go.Bar(y=[SE["names"][k] for k in order], x=[res[k][g] for k in order], orientation="h",
+                             name="보이드가 핫스팟과 겹침" if g == g_ov else "나머지 (떨어짐·없음)",
+                             marker_color=color, hovertemplate="%{y}: +%{x:.2f}℃<extra></extra>"))
+    style(fig, 380, legend=True)
+    fig.update_layout(barmode="group", bargap=0.25)
+    fig.update_xaxes(title=dict(text="섞었을 때 늘어난 평균 오차 (℃)", font=dict(size=12)))
+    chart(fig)
+
+    ml = SE[model_name]["rise"]["ml_only"]
+    a, b = st.columns(2, gap="large")
+    with a:
+        html('<div class="note">보이드는 <b>핫스팟과 겹칠 때만</b> 중요합니다. 보이드 폭의 중요도가 겹친 경우 +{:.1f}℃, '
+             '나머지 +{:.1f}℃로 약 {:.0f}배 차이입니다. 160건 전체로 평균을 내면 이 차이가 묻힙니다.</div>'.format(
+                 ml["void_mm"][g_ov], ml["void_mm"][g_rest], ml["void_mm"][g_ov] / ml["void_mm"][g_rest]))
+    with b:
+        html('<div class="note info">ML만 보기에서 <b>방열판 저항</b>의 중요도는 {:.2f}℃로 사실상 0입니다. 방열판 저항은 칩 전체 온도를 '
+             '똑같이 올릴 뿐이라 1D 공식이 모두 설명하고, 머신러닝이 맡은 "옆으로 퍼지는 열" 과는 관계가 없어야 맞습니다. '
+             '모델이 데이터에서 이 물리를 스스로 찾았습니다.</div>'.format(abs(ml["r_sink"][g_all])))
+    html('<div class="cap" style="margin-top:10px">한계: "모델이 무엇에 기대는가" 를 잰 것이지 실제 물리를 직접 잰 것은 아닙니다. '
+         '가우시안 과정과 신경망이 같은 순위를 냈습니다. 중요도는 학습 데이터의 범위에 따라 달라집니다.</div>')
+
+
+# 보기 7: AI에게 묻기 (agent.py)
+
+elif view == "AI에게 묻기":
+    import agent as A
+    A._surrogate = s                                       # 화면이 이미 학습한 대리모델을 같이 쓴다
+    html('<p class="lead"><b>LLM 에이전트.</b> 말로 물으면 LLM이 질문을 읽고 <b>어떤 계산 도구를 어떤 조건으로 부를지</b>만 정합니다. '
+         '온도는 LLM이 직접 계산하지 않고 도구(대리모델, 2D 해석, 허용 보이드)가 계산합니다. 위 조건 패널과는 따로 움직입니다.</p>')
+
+    EV = load_json("eval_agent.json")
+    if EV:
+        kinds = " · ".join("{} {}/{}".format(k, a_, b_) for k, (a_, b_) in EV["by_kind"].items())
+        made_up = sum(r["made_up"] for r in EV["results"])
+        html("""<div class="trio">
+          <div>채점 질문 정답<b>{} / {}</b></div>
+          <div>도구 없이 지어낸 답<b>{} 개</b></div>
+          <div>모델<b style="font-size:17px">{}</b></div></div>
+          <div class="cap">{}. 온도는 2D 해석과 {:g}℃ 이내, 허용 보이드는 {:g}mm 이내면 정답.
+          질문 20개는 직접 만든 비교적 직접적인 질문이라, 애매한 질문에서의 성능은 시험하지 않았습니다.</div>""".format(
+            EV["correct"], EV["total"], made_up, esc(EV["model"]), kinds, EV["tol_c"], EV["tol_mm"]))
+
+    examples = ["폭 2 mm 보이드가 핫스팟 바로 위에 있으면 최고 온도는?",
+                "TIM 열전도율을 3에서 6으로 올리면 몇 도 내려가?",
+                "핫스팟 위 보이드는 40℃를 넘지 않으려면 몇 mm까지 괜찮아?",
+                "발열 30 W이면 몇 도야?"]
+    html('<div class="sec">질문하기</div><div class="cap">예시를 누르거나 직접 입력하세요. 한 번에 약 10초, 비용 약 1원.</div>')
+    ecols = st.columns(len(examples), gap="small")
+    for col, ex in zip(ecols, examples):
+        if col.button(ex, key="ex_" + ex, width="stretch"):
+            st.session_state.agent_q = ex
+    q = st.text_area("질문", key="agent_q", height=80, label_visibility="collapsed",
+                     placeholder="예: 보이드 1 mm가 핫스팟에서 3 mm 떨어져 있으면 최고 온도는?")
+    if st.button("묻기", type="primary", key="agent_ask") and q.strip():
+        try:
+            with st.spinner("LLM이 도구를 고르고 계산하는 중"):
+                st.session_state.agent_last = dict(A.ask(q.strip(), verbose=False), question=q.strip())
+        except SystemExit as e:                              # 키가 없을 때
+            html('<div class="note bad">{}</div>'.format(esc(e)))
+        except Exception as e:                               # 네트워크·요금 등
+            html('<div class="note bad">LLM 호출 실패: {}</div>'.format(esc(e)))
+
+    last = st.session_state.get("agent_last")
+    if last:
+        steps = "".join(
+            '<div class="check-row"><span class="tag">도구 {}</span><span>{}<span class="d">입력 {}<br>결과 {}</span></span></div>'.format(
+                i, esc(c["tool"]), esc(M.json.dumps(c["args"], ensure_ascii=False)),
+                esc(M.json.dumps(c["result"], ensure_ascii=False)))
+            for i, c in enumerate(last["calls"], 1)) or '<div class="cap">도구를 부르지 않았습니다.</div>'
+        a, b = st.columns([6, 5], gap="large")
+        with a:
+            html('<div class="read-label">질문</div><div class="answer-sub" style="margin-bottom:10px">{}</div>'
+                 '<div class="read-label">답</div><div class="lead" style="color:var(--ink)">{}</div>'.format(
+                     esc(last["question"]), esc(last["answer"]).replace("\n", "<br>")))
+        with b:
+            html('<div class="check-card"><div class="ch">LLM이 부른 도구</div>{}</div>'.format(steps))
+            html('<div class="cap">{} · 토큰 입력 {:,} / 출력 {:,} · {:.1f}초</div>'.format(
+                esc(last["model"]), last["tokens"]["in"], last["tokens"]["out"], last["seconds"]))
+
+
+# 보기 8: 검증과 방법
 
 else:
     a, b = st.columns([5, 7], gap="large")
