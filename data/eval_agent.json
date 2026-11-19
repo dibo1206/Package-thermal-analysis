@@ -1,0 +1,410 @@
+{
+  "model": "anthropic/claude-haiku-5.5",
+  "tol_c": 1.0,
+  "tol_mm": 0.03,
+  "correct": 20,
+  "total": 20,
+  "by_kind": {
+    "온도": [
+      8,
+      8
+    ],
+    "비교": [
+      4,
+      4
+    ],
+    "허용": [
+      4,
+      4
+    ],
+    "범위": [
+      4,
+      4
+    ]
+  },
+  "tokens": {
+    "in": 91508,
+    "out": 11880
+  },
+  "results": [
+    {
+      "no": 1,
+      "model": "anthropic/claude-haiku-5.5",
+      "kind": "온도",
+      "question": "기본 조건에서 칩 최고 온도는?",
+      "truth": 36.30542205874699,
+      "got": 36.3,
+      "correct": true,
+      "made_up": false,
+      "tools": [
+        "predict_temperature"
+      ],
+      "tokens": {
+        "in": 4855,
+        "out": 607
+      },
+      "seconds": 6.576940059661865,
+      "answer": "기본 조건(5 W, 핫스팟 1 mm, TIM 0.05 mm / 3 W/m·K, 방열판 1 K/W, 보이드 없음)에서 예측 최고 온도는 **36.3 ℃**입니다. 95% 범위는 ±0.07 ℃이고, 불확실도 플래그는 false라서 정밀 시뮬레이션은 돌리지 않았습니다.\n\n답: 36.3 ℃"
+    },
+    {
+      "no": 2,
+      "model": "anthropic/claude-haiku-5.5",
+      "kind": "온도",
+      "question": "발열 10 W, 핫스팟 2 mm일 때 최고 온도 알려줘.",
+      "truth": 43.96616825639557,
+      "got": 44.0,
+      "correct": true,
+      "made_up": false,
+      "tools": [
+        "predict_temperature"
+      ],
+      "tokens": {
+        "in": 4885,
+        "out": 550
+      },
+      "seconds": 3.7113945484161377,
+      "answer": "발열 10 W, 핫스팟 2 mm, 기본 조건(TIM 0.05 mm / 3 W/m·K, 방열판 1 K/W, 보이드 없음)에서 최고 온도는 약 44.0 ℃입니다(95% 범위 ±0.14 ℃). 불확실성 플래그가 false라 정밀 해석은 따로 돌리지 않았습니다.\n\n답: 44.0 ℃"
+    },
+    {
+      "no": 3,
+      "model": "anthropic/claude-haiku-5.5",
+      "kind": "온도",
+      "question": "TIM 열전도율이 1.5 W/mK로 낮으면 최고 온도가 몇 도야?",
+      "truth": 39.310423005711286,
+      "got": 39.35,
+      "correct": true,
+      "made_up": false,
+      "tools": [
+        "predict_temperature"
+      ],
+      "tokens": {
+        "in": 4897,
+        "out": 615
+      },
+      "seconds": 4.027140378952026,
+      "answer": "TIM 열전도율이 1.5 W/m·K이고 나머지는 기본 조건(발열 5 W, 핫스팟 1 mm, TIM 0.05 mm, 방열판 1 K/W, 보이드 없음)일 때 최고 온도는 약 39.35 ℃다. 95% 범위는 ±0.11 ℃ 수준이다. 핫스팟을 무시한 1D 균일 발열 계산값은 31.82 ℃다.\n\n답: 39.35 ℃"
+    },
+    {
+      "no": 4,
+      "model": "anthropic/claude-haiku-5.5",
+      "kind": "온도",
+      "question": "TIM 두께 0.15 mm, 방열판 저항 2 K/W, 발열 8 W이면?",
+      "truth": 59.701589725806286,
+      "got": 59.69,
+      "correct": true,
+      "made_up": false,
+      "tools": [
+        "predict_temperature"
+      ],
+      "tokens": {
+        "in": 4900,
+        "out": 588
+      },
+      "seconds": 4.225988388061523,
+      "answer": "예측 최고 온도는 약 59.7 ℃이고, 95% 범위는 ±0.06 ℃ 수준이라 불확실성이 작습니다. 보이드가 없는 조건이며, 1D 균일발열 계산값(45.25 ℃)은 핫스팟 효과를 반영하지 않으므로 참고만 하시면 됩니다.\n\n답: 59.69 ℃"
+    },
+    {
+      "no": 5,
+      "model": "anthropic/claude-haiku-5.5",
+      "kind": "온도",
+      "question": "폭 2 mm 보이드가 핫스팟 바로 위에 있을 때 최고 온도는?",
+      "truth": 50.875532205798386,
+      "got": 51.0,
+      "correct": true,
+      "made_up": false,
+      "tools": [
+        "predict_temperature"
+      ],
+      "tokens": {
+        "in": 4893,
+        "out": 472
+      },
+      "seconds": 3.3058955669403076,
+      "answer": "폭 2 mm 보이드가 핫스팟 바로 위(5 mm)에 있을 때 최고 온도는 약 51.0℃입니다(95% 범위 ±1.7℃ 수준, 불확실성 플래그는 없음). 기본 조건(q=5 W, 핫스팟 1 mm, TIM 0.05 mm/3 W·m⁻¹·K⁻¹, 방열판 1 K/W)을 적용했습니다.\n\n답: 51.0 ℃"
+    },
+    {
+      "no": 6,
+      "model": "anthropic/claude-haiku-5.5",
+      "kind": "온도",
+      "question": "폭 1 mm 보이드가 핫스팟 중심에서 3 mm 떨어져 있으면 최고 온도는?",
+      "truth": 36.30640774387934,
+      "got": 36.29,
+      "correct": true,
+      "made_up": false,
+      "tools": [
+        "predict_temperature"
+      ],
+      "tokens": {
+        "in": 4909,
+        "out": 839
+      },
+      "seconds": 4.99006462097168,
+      "answer": "핫스팟 중심(5 mm)에서 3 mm 떨어진 위치, 즉 보이드 중심을 8 mm에 둔 경우 최고 온도는 약 **36.29 ℃**입니다. 보이드가 핫스팟을 직접 덮지 않으며, 예측 불확실성은 작습니다(95% 범위 약 0.07 ℃). 다른 조건은 기본값(5 W, 핫스팟 1 mm, TIM 0.05 mm/3 W·m⁻¹·K⁻¹, 방열판 1 K/W)을 사용했습니다.\n\n답: 36.29 ℃"
+    },
+    {
+      "no": 7,
+      "model": "anthropic/claude-haiku-5.5",
+      "kind": "온도",
+      "question": "발열 12 W, 핫스팟 0.5 mm, 폭 1.5 mm 보이드가 핫스팟 위에 있으면 정확히 몇 도야?",
+      "truth": 83.10900478422194,
+      "got": 83.1,
+      "correct": true,
+      "made_up": false,
+      "tools": [
+        "run_simulation",
+        "predict_temperature"
+      ],
+      "tokens": {
+        "in": 5314,
+        "out": 893
+      },
+      "seconds": 6.997962951660156,
+      "answer": "2D 시뮬레이션 결과, 최고 온도는 약 **83.1 ℃**입니다.\n\n- 조건: 발열 12 W, 핫스팟 0.5 mm, 보이드 폭 1.5 mm(핫스팟 바로 위), TIM 0.05 mm / 3 W/m·K, 방열판 1 K/W\n- 대리모델은 83.96 ℃(95% 범위 ±5.57 ℃)를 주었고 불확실성이 커서 정확한 값으로 시뮬레이션 결과를 씁니다.\n\n답: 83.1 ℃"
+    },
+    {
+      "no": 8,
+      "model": "anthropic/claude-haiku-5.5",
+      "kind": "온도",
+      "question": "핫스팟이 다이 전체(10 mm)로 균일하게 발열하고 발열 6 W면 최고 온도는?",
+      "truth": 32.18999999999998,
+      "got": 32.57,
+      "correct": true,
+      "made_up": false,
+      "tools": [
+        "predict_temperature"
+      ],
+      "tokens": {
+        "in": 4909,
+        "out": 561
+      },
+      "seconds": 4.000221252441406,
+      "answer": "다이 전체(10 mm)를 균일하게 발열(6 W)시키고 나머지 조건은 기본값으로 둔 경우, 최고 온도는 약 32.57℃입니다(95% 범위 ±0.29℃, 1D 계산값 32.19℃). 대리모델 결과이며 불확실성 플래그는 false입니다.\n\n답: 32.57 ℃"
+    },
+    {
+      "no": 9,
+      "model": "anthropic/claude-haiku-5.5",
+      "kind": "비교",
+      "question": "폭 2 mm 보이드가 핫스팟 바로 위에 있을 때와 보이드가 없을 때 최고 온도 차이는?",
+      "truth": 14.570110147051395,
+      "got": 14.7,
+      "correct": true,
+      "made_up": false,
+      "tools": [
+        "predict_temperature",
+        "predict_temperature"
+      ],
+      "tokens": {
+        "in": 5353,
+        "out": 727
+      },
+      "seconds": 4.13172721862793,
+      "answer": "보이드가 핫스팟 바로 위(5 mm)에 있으면 최고 온도는 약 51.0 ℃, 보이드가 없으면 약 36.3 ℃입니다. 차이는 약 14.7 ℃이며, 95% 범위 폭은 각각 ±0.87 ℃, ±0.04 ℃ 수준입니다. 예측의 uncertain 값이 false라서 추가 시뮬레이션은 하지 않았습니다.\n\n답: 14.7 ℃"
+    },
+    {
+      "no": 10,
+      "model": "anthropic/claude-haiku-5.5",
+      "kind": "비교",
+      "question": "폭 2 mm 보이드가 핫스팟 바로 위일 때와, 핫스팟 중심에서 2 mm 떨어졌을 때 온도 차이는?",
+      "truth": 14.430384065011324,
+      "got": 14.55,
+      "correct": true,
+      "made_up": false,
+      "tools": [
+        "predict_temperature",
+        "predict_temperature"
+      ],
+      "tokens": {
+        "in": 5373,
+        "out": 893
+      },
+      "seconds": 4.7673022747039795,
+      "answer": "핫스팟 바로 위(5 mm)에 폭 2 mm 보이드가 있으면 최고 온도는 51.03 ℃(95% 범위 ±1.73 ℃)이고, 핫스팟에서 2 mm 떨어진 7 mm에 있으면 36.48 ℃(±0.11 ℃)입니다. 대리모델 불확실도 판정은 둘 다 false라 시뮬레이션은 추가로 돌리지 않았습니다.\n\n온도 차이는 약 14.55 ℃이며, 핫스팟 바로 위 보이드가 더 뜨겁습니다. 보이드가 핫스팟을 직접 덮으면 열 경로가 막혀 온도가 크게 올라갑니다.\n\n답: 14.55 ℃"
+    },
+    {
+      "no": 11,
+      "model": "anthropic/claude-haiku-5.5",
+      "kind": "비교",
+      "question": "TIM 열전도율을 3에서 6 W/mK로 바꾸면 최고 온도가 몇 도 내려가?",
+      "truth": 1.9581064907810912,
+      "got": 1.95,
+      "correct": true,
+      "made_up": false,
+      "tools": [
+        "predict_temperature",
+        "predict_temperature"
+      ],
+      "tokens": {
+        "in": 5339,
+        "out": 784
+      },
+      "seconds": 4.418350696563721,
+      "answer": "TIM 열전도율을 3에서 6 W/m·K로 올리면 최고 온도는 약 1.95 ℃ 내려간다.\n\n- k = 3 W/m·K: 36.3 ℃\n- k = 6 W/m·K: 34.35 ℃\n\n조건은 발열 5 W, 핫스팟 1 mm, TIM 0.05 mm, 방열판 1 K/W, 보이드 없음이다. 예측 결과가 불확실하지 않아 2D 시뮬레이션은 돌리지 않았다.\n\n답: 1.95 ℃"
+    },
+    {
+      "no": 12,
+      "model": "anthropic/claude-haiku-5.5",
+      "kind": "비교",
+      "question": "발열 10 W에서 핫스팟 1 mm와 4 mm의 최고 온도 차이는?",
+      "truth": 7.2510693685116365,
+      "got": 7.2,
+      "correct": true,
+      "made_up": false,
+      "tools": [
+        "predict_temperature",
+        "predict_temperature"
+      ],
+      "tokens": {
+        "in": 5325,
+        "out": 801
+      },
+      "seconds": 4.757458448410034,
+      "answer": "핫스팟 1 mm의 최고 온도는 47.6 ℃, 4 mm는 40.36 ℃이며, 차이는 약 7.2 ℃입니다(1 mm 쪽이 더 높음). 두 예측의 95% 범위는 각각 ±0.14 ℃, ±0.11 ℃이고 불확실하지 않다고 나와 추가 시뮬레이션은 하지 않았습니다.\n\n답: 7.2 ℃"
+    },
+    {
+      "no": 13,
+      "model": "anthropic/claude-haiku-5.5",
+      "kind": "허용",
+      "question": "핫스팟 바로 위(5 mm)에 보이드가 생긴다면 최고 온도 40℃를 넘지 않는 최대 보이드 폭은?",
+      "truth": 0.525,
+      "got": 0.525,
+      "correct": true,
+      "made_up": false,
+      "tools": [
+        "allowable_void"
+      ],
+      "tokens": {
+        "in": 4812,
+        "out": 605
+      },
+      "seconds": 4.192195415496826,
+      "answer": "핫스팟 바로 위(5 mm)에 보이드가 생길 때, 기본 조건(q=5 W, 핫스팟 1 mm, TIM 0.05 mm/3 W/m·K, 방열판 1 K/W)에서 최고 온도 40℃를 넘지 않는 최대 보이드 폭은 약 0.525 mm입니다. 보이드가 없을 때의 최고 온도는 36.3℃입니다.\n\n답: 0.525 mm"
+    },
+    {
+      "no": 14,
+      "model": "anthropic/claude-haiku-5.5",
+      "kind": "허용",
+      "question": "발열 8 W일 때 핫스팟 위 보이드는 최고 온도 50℃ 이하가 되려면 몇 mm까지 괜찮아?",
+      "truth": 0.6000000000000001,
+      "got": 0.6,
+      "correct": true,
+      "made_up": false,
+      "tools": [
+        "allowable_void"
+      ],
+      "tokens": {
+        "in": 4813,
+        "out": 670
+      },
+      "seconds": 4.170459747314453,
+      "answer": "핫스팟 바로 위(중심 5 mm)에 보이드가 있을 때, 최고 온도 50℃ 이하를 만족하는 허용 폭은 약 0.6 mm입니다.\n\n- 보이드가 없을 때 최고 온도는 약 43.1℃입니다.\n- 나머지 조건은 지정하지 않아 기본값을 썼습니다: 핫스팟 1 mm, TIM 0.05 mm / 3 W/m·K, 방열판 1 K/W.\n\n답: 0.6 mm"
+    },
+    {
+      "no": 15,
+      "model": "anthropic/claude-haiku-5.5",
+      "kind": "허용",
+      "question": "보이드 중심이 6 mm 위치일 때 최고 온도 38℃ 한계라면 허용되는 보이드 폭은?",
+      "truth": 1.225,
+      "got": 1.225,
+      "correct": true,
+      "made_up": false,
+      "tools": [
+        "allowable_void"
+      ],
+      "tokens": {
+        "in": 4792,
+        "out": 612
+      },
+      "seconds": 3.9895291328430176,
+      "answer": "보이드 중심이 6 mm 위치이고 나머지 조건을 기본값(발열 5 W, 핫스팟 1 mm, TIM 0.05 mm / 3 W/m·K, 방열판 1 K/W)으로 두면, 최고 온도 38℃ 한계 내에서 허용되는 보이드 폭은 약 1.225 mm입니다. 보이드가 없을 때의 최고 온도는 36.3℃입니다.\n\n답: 1.225 mm"
+    },
+    {
+      "no": 16,
+      "model": "anthropic/claude-haiku-5.5",
+      "kind": "허용",
+      "question": "TIM 두께 0.1 mm, 핫스팟 위 보이드, 최고 온도 한계 45℃에서 허용 보이드 폭은?",
+      "truth": 0.7250000000000001,
+      "got": 0.725,
+      "correct": true,
+      "made_up": false,
+      "tools": [
+        "allowable_void"
+      ],
+      "tokens": {
+        "in": 4809,
+        "out": 706
+      },
+      "seconds": 4.290700674057007,
+      "answer": "핫스팟 바로 위(5 mm)에 보이드가 있을 때, 최고 온도가 45℃를 넘지 않는 허용 보이드 폭은 약 0.725 mm입니다. 보이드가 없을 때의 최고 온도는 39.27℃입니다.\n\n조건은 TIM 두께 0.1 mm, 발열량 5 W, 핫스팟 1 mm, TIM 열전도율 3 W/m·K, 방열판 저항 1 K/W입니다. 발열량, 핫스팟 크기, TIM 열전도율, 방열판 저항은 말씀하지 않으셔서 기본값을 썼습니다.\n\n답: 0.725 mm"
+    },
+    {
+      "no": 17,
+      "model": "anthropic/claude-haiku-5.5",
+      "kind": "범위",
+      "question": "발열 30 W일 때 최고 온도는?",
+      "truth": "범위 밖",
+      "got": "범위 밖",
+      "correct": true,
+      "made_up": false,
+      "tools": [],
+      "tokens": {
+        "in": 2235,
+        "out": 199
+      },
+      "seconds": 1.747908592224121,
+      "answer": "발열량 30 W는 입력 범위(1~15 W)를 벗어나므로 계산할 수 없습니다. 범위 안의 발열량으로 다시 질문해 주시면 계산하겠습니다.\n\n답: 범위 밖"
+    },
+    {
+      "no": 18,
+      "model": "anthropic/claude-haiku-5.5",
+      "kind": "범위",
+      "question": "TIM 두께 0.5 mm이면 최고 온도 몇 도야?",
+      "truth": "범위 밖",
+      "got": "범위 밖",
+      "correct": true,
+      "made_up": false,
+      "tools": [],
+      "tokens": {
+        "in": 2246,
+        "out": 247
+      },
+      "seconds": 2.138678550720215,
+      "answer": "TIM 두께 0.5 mm는 계산 범위(0.05~0.25 mm)를 벗어나서 최고 온도를 계산할 수 없습니다. 두께를 0.05~0.25 mm 안의 값으로 바꾸면 다시 계산해 드리겠습니다.\n\n답: 범위 밖"
+    },
+    {
+      "no": 19,
+      "model": "anthropic/claude-haiku-5.5",
+      "kind": "범위",
+      "question": "TIM 열전도율 20 W/mK인 금속 TIM이면 최고 온도는?",
+      "truth": "범위 밖",
+      "got": "범위 밖",
+      "correct": true,
+      "made_up": false,
+      "tools": [],
+      "tokens": {
+        "in": 2251,
+        "out": 176
+      },
+      "seconds": 1.6429669857025146,
+      "answer": "입력 범위(TIM 열전도율 1~10 W/m·K)를 벗어나는 값이라 계산하지 않았습니다. 20 W/m·K는 범위 밖입니다. 10 W/m·K 이하의 값으로 다시 질문해 주시면 계산하겠습니다.\n\n답: 범위 밖"
+    },
+    {
+      "no": 20,
+      "model": "anthropic/claude-haiku-5.5",
+      "kind": "범위",
+      "question": "방열판 저항 0.1 K/W일 때 최고 온도 알려줘.",
+      "truth": "범위 밖",
+      "got": "범위 밖",
+      "correct": true,
+      "made_up": false,
+      "tools": [
+        "predict_temperature"
+      ],
+      "tokens": {
+        "in": 4598,
+        "out": 335
+      },
+      "seconds": 3.0364370346069336,
+      "answer": "방열판 저항 0.1 K/W는 입력 범위(0.3~3 K/W) 밖이라 계산할 수 없습니다.\n\n답: 범위 밖"
+    }
+  ]
+}
