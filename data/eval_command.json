@@ -1,0 +1,294 @@
+{
+  "model": "anthropic/claude-haiku-5.5",
+  "start": {
+    "q_w": 5.0,
+    "spot_mm": 1.0,
+    "tim_mm": 0.05,
+    "tim_k": 3.0,
+    "r_sink": 1.0,
+    "void_mm": 1.0,
+    "void_center_mm": 3.0
+  },
+  "correct": 10,
+  "total": 10,
+  "results": [
+    {
+      "no": 1,
+      "command": "발열을 두 배로 올려줘",
+      "want": {
+        "q_w": 10.0,
+        "spot_mm": 1.0,
+        "tim_mm": 0.05,
+        "tim_k": 3.0,
+        "r_sink": 1.0,
+        "void_mm": 1.0,
+        "void_center_mm": 3.0
+      },
+      "got": {
+        "q_w": 10.0,
+        "spot_mm": 1.0,
+        "tim_mm": 0.05,
+        "tim_k": 3.0,
+        "r_sink": 1.0,
+        "void_mm": 1.0,
+        "void_center_mm": 3.0
+      },
+      "correct": true,
+      "tools": [
+        "set_conditions"
+      ],
+      "answer": "발열량을 5 W에서 10 W로 두 배 올렸습니다. 예측 최고 온도는 47.46 ℃이고, 95% 범위는 ±0.25 ℃입니다.",
+      "tokens": {
+        "in": 5376,
+        "out": 168
+      }
+    },
+    {
+      "no": 2,
+      "command": "TIM 열전도율 1 올려",
+      "want": {
+        "q_w": 5.0,
+        "spot_mm": 1.0,
+        "tim_mm": 0.05,
+        "tim_k": 4.0,
+        "r_sink": 1.0,
+        "void_mm": 1.0,
+        "void_center_mm": 3.0
+      },
+      "got": {
+        "q_w": 5.0,
+        "spot_mm": 1.0,
+        "tim_mm": 0.05,
+        "tim_k": 4.0,
+        "r_sink": 1.0,
+        "void_mm": 1.0,
+        "void_center_mm": 3.0
+      },
+      "correct": true,
+      "tools": [
+        "set_conditions"
+      ],
+      "answer": "TIM 열전도율을 3에서 4 W/m·K로 올렸습니다. 예측 최고 온도는 35.28℃ (95% 범위 ±0.14℃)입니다.",
+      "tokens": {
+        "in": 5377,
+        "out": 183
+      }
+    },
+    {
+      "no": 3,
+      "command": "보이드 없애줘",
+      "want": {
+        "q_w": 5.0,
+        "spot_mm": 1.0,
+        "tim_mm": 0.05,
+        "tim_k": 3.0,
+        "r_sink": 1.0,
+        "void_mm": 0.0,
+        "void_center_mm": 3.0
+      },
+      "got": {
+        "q_w": 5.0,
+        "spot_mm": 1.0,
+        "tim_mm": 0.05,
+        "tim_k": 3.0,
+        "r_sink": 1.0,
+        "void_mm": 0.0,
+        "void_center_mm": 0.0
+      },
+      "correct": true,
+      "tools": [
+        "set_conditions"
+      ],
+      "answer": "보이드를 없애 void_mm를 0으로 바꿨습니다. 예측 최고 온도는 36.3℃이고 95% 범위는 ±0.07℃입니다.",
+      "tokens": {
+        "in": 5367,
+        "out": 117
+      }
+    },
+    {
+      "no": 4,
+      "command": "보이드를 핫스팟 바로 위로 옮겨",
+      "want": {
+        "q_w": 5.0,
+        "spot_mm": 1.0,
+        "tim_mm": 0.05,
+        "tim_k": 3.0,
+        "r_sink": 1.0,
+        "void_mm": 1.0,
+        "void_center_mm": 5.0
+      },
+      "got": {
+        "q_w": 5.0,
+        "spot_mm": 1.0,
+        "tim_mm": 0.05,
+        "tim_k": 3.0,
+        "r_sink": 1.0,
+        "void_mm": 1.0,
+        "void_center_mm": 5.0
+      },
+      "correct": true,
+      "tools": [
+        "set_conditions"
+      ],
+      "answer": "보이드 중심을 핫스팟 바로 위인 5 mm로 옮겼다. 최고 온도는 약 42.4℃이고 95% 범위는 ±2.45℃다.",
+      "tokens": {
+        "in": 5395,
+        "out": 167
+      }
+    },
+    {
+      "no": 5,
+      "command": "보이드 폭을 2 mm로 키워",
+      "want": {
+        "q_w": 5.0,
+        "spot_mm": 1.0,
+        "tim_mm": 0.05,
+        "tim_k": 3.0,
+        "r_sink": 1.0,
+        "void_mm": 2.0,
+        "void_center_mm": 3.0
+      },
+      "got": {
+        "q_w": 5.0,
+        "spot_mm": 1.0,
+        "tim_mm": 0.05,
+        "tim_k": 3.0,
+        "r_sink": 1.0,
+        "void_mm": 2.0,
+        "void_center_mm": 3.0
+      },
+      "correct": true,
+      "tools": [
+        "set_conditions"
+      ],
+      "answer": "보이드 폭을 2 mm로 바꿨습니다. 예측 최고 온도는 36.48℃이고, 95% 범위는 ±0.11℃입니다.",
+      "tokens": {
+        "in": 5383,
+        "out": 173
+      }
+    },
+    {
+      "no": 6,
+      "command": "TIM 두께 0.1 mm, 방열판 저항 0.5로 바꿔",
+      "want": {
+        "q_w": 5.0,
+        "spot_mm": 1.0,
+        "tim_mm": 0.1,
+        "tim_k": 3.0,
+        "r_sink": 0.5,
+        "void_mm": 1.0,
+        "void_center_mm": 3.0
+      },
+      "got": {
+        "q_w": 5.0,
+        "spot_mm": 1.0,
+        "tim_mm": 0.1,
+        "tim_k": 3.0,
+        "r_sink": 0.5,
+        "void_mm": 1.0,
+        "void_center_mm": 3.0
+      },
+      "correct": true,
+      "tools": [
+        "set_conditions"
+      ],
+      "answer": "TIM 두께를 0.1 mm, 방열판 저항을 0.5 K/W로 바꿨습니다. 예측 최고 온도는 36.81℃이고, 95% 범위는 ±0.1℃입니다.",
+      "tokens": {
+        "in": 5442,
+        "out": 162
+      }
+    },
+    {
+      "no": 7,
+      "command": "핫스팟을 다이 전체로 균일하게 해줘",
+      "want": {
+        "q_w": 5.0,
+        "spot_mm": 10.0,
+        "tim_mm": 0.05,
+        "tim_k": 3.0,
+        "r_sink": 1.0,
+        "void_mm": 1.0,
+        "void_center_mm": 3.0
+      },
+      "got": {
+        "q_w": 5.0,
+        "spot_mm": 10.0,
+        "tim_mm": 0.05,
+        "tim_k": 3.0,
+        "r_sink": 1.0,
+        "void_mm": 1.0,
+        "void_center_mm": 3.0
+      },
+      "correct": true,
+      "tools": [
+        "set_conditions"
+      ],
+      "answer": "핫스팟 크기를 다이 전체 폭인 10 mm로 바꿨고, 나머지 조건은 그대로 두었습니다. 예측 최고 온도는 32.9 ℃이고 95% 범위는 ±0.41 ℃입니다.",
+      "tokens": {
+        "in": 5396,
+        "out": 220
+      }
+    },
+    {
+      "no": 8,
+      "command": "보이드를 왼쪽으로 1 mm 옮겨",
+      "want": {
+        "q_w": 5.0,
+        "spot_mm": 1.0,
+        "tim_mm": 0.05,
+        "tim_k": 3.0,
+        "r_sink": 1.0,
+        "void_mm": 1.0,
+        "void_center_mm": 2.0
+      },
+      "got": {
+        "q_w": 5.0,
+        "spot_mm": 1.0,
+        "tim_mm": 0.05,
+        "tim_k": 3.0,
+        "r_sink": 1.0,
+        "void_mm": 1.0,
+        "void_center_mm": 2.0
+      },
+      "correct": true,
+      "tools": [
+        "set_conditions"
+      ],
+      "answer": "보이드 중심을 3 mm에서 2 mm로 옮겼고, 예측 최고 온도는 36.29 ℃(95% 범위 ±0.07 ℃)입니다.",
+      "tokens": {
+        "in": 5397,
+        "out": 190
+      }
+    },
+    {
+      "no": 9,
+      "command": "발열 30 W로 해봐",
+      "want": null,
+      "got": null,
+      "correct": true,
+      "tools": [
+        "set_conditions"
+      ],
+      "answer": "발열량 30 W는 입력 범위(1~15 W)를 벗어나서 화면 조건을 바꾸지 않았습니다. 15 W 이하의 값으로 다시 지정해 주시면 적용하겠습니다.",
+      "tokens": {
+        "in": 5301,
+        "out": 276
+      }
+    },
+    {
+      "no": 10,
+      "command": "지금 온도 왜 이렇게 높아?",
+      "want": null,
+      "got": null,
+      "correct": true,
+      "tools": [
+        "run_simulation"
+      ],
+      "answer": "현재 조건의 2D 해석 최고 온도는 36.32℃로, 주변 온도 25℃보다 11℃ 정도 높은 수준입니다. 보이드는 핫스팟 중심(5 mm)에서 2 mm 떨어진 3 mm 위치에 있어 온도를 크게 올리는 원인으로 보기는 어렵습니다. 기준 온도를 알려주시면 허용 범위를 확인해 보겠습니다.",
+      "tokens": {
+        "in": 5527,
+        "out": 633
+      }
+    }
+  ]
+}

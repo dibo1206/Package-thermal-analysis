@@ -348,6 +348,53 @@ class Surrogate:
         counts = {name: int((cls == k).sum()) for k, name in enumerate(SPEC_CLASSES)}
         return dict(rm, cls=cls, counts=counts, n=int((cls >= 0).sum()), limit=float(limit))
 
+    # ── 온도를 낮추는 방법 ──
+
+    def improvements(self, base):
+        """패키징에서 바꿀 수 있는 조건을 하나씩 한 단계만 바꿨을 때 최고 온도 변화. 많이 내려가는 순.
+
+        각 항목: name, step(한 단계 설명), cond(바꾼 조건), t_max, delta(바꾼 뒤 − 지금), half95(바꾼 뒤 예측의 반폭)
+        범위 끝이라 바꿀 수 없는 손잡이는 빠진다. 발열량·핫스팟은 칩 설계가 정하므로 넣지 않는다.
+        """
+        base = prepare(base)
+        cands = [change(base, a) for a in ACTIONS]
+        cands = [(a, c) for a, c in zip(ACTIONS, cands) if c is not None]
+        conds = [base] + [c for _, c in cands]
+        mean, half, _ = self.predict_many(conds)
+        out = [{"name": a["name"], "step": a["step"], "cond": c, "t_max": float(m),
+                "delta": float(m - mean[0]), "half95": float(h)}
+               for (a, c), m, h in zip(cands, mean[1:], half[1:])]
+        return sorted(out, key=lambda r: r["delta"])
+
+
+# 패키징 쪽 손잡이와 한 단계 크기. 한 단계 크기를 바꾸면 순위가 바뀔 수 있다.
+ACTIONS = [
+    {"name": "TIM 열전도율 올리기", "step": "+1 W/m·K", "key": "tim_k", "by": +1.0},
+    {"name": "TIM 얇게", "step": "−0.025 mm", "key": "tim_mm", "by": -0.025},
+    {"name": "방열판 저항 낮추기", "step": "−0.1 K/W", "key": "r_sink", "by": -0.1},
+    {"name": "보이드 줄이기", "step": "폭 −0.25 mm", "key": "void_mm", "by": -0.25},
+    {"name": "보이드 없애기", "step": "폭 0 mm", "key": "void_mm", "to": 0.0},
+]
+
+
+def change(base, action):
+    """base 에서 손잡이 하나를 바꾼 조건. 범위를 벗어나거나 바뀌는 게 없으면 None."""
+    key = action["key"]
+    if key == "void_mm" and base["void_mm"] <= 0:
+        return None
+    new = action["to"] if "to" in action else base[key] + action["by"]
+    if key == "void_mm" and "by" in action and new < RANGES["void_mm"][0] - _EPS:
+        return None                                         # 가장 작은 보이드보다 작게는 '없애기' 가 맡는다
+    if key != "void_mm":
+        lo, hi = RANGES[key]
+        if not (lo - _EPS <= new <= hi + _EPS):
+            return None
+    p = snap(dict(base, **{key: new}))
+    if key == "void_mm" and new > 0:
+        p["void_center_mm"] = base["void_center_mm"]
+        p = snap(p)
+    return p if abs(p[key] - base[key]) > _EPS else None
+
 
 # ── 규격 판정 (docs/validation-log.md, 2026-11-08 사전 등록) ──────
 # MIL-STD-883G Method 2012.7 의 다이 접합 보이드 기준을 TIM 보이드에 '비유로' 적용한다.

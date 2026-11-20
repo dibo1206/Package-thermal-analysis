@@ -3,8 +3,8 @@
   python app/test_app.py
 
 확인하는 것
-  - 기본 조건으로 열면 오류 없이 그려지고, 사이드바가 없고, 보기 여덟 개를 모두 열 수 있다
-  - 딥러닝 비교·민감도 분석·AI에게 묻기 보기가 열린다 (LLM 은 부르지 않는다)
+  - 기본 조건으로 열면 오류 없이 그려지고, 사이드바가 없고, 보기 다섯 개를 모두 열 수 있다
+  - 검증과 방법 안의 딥러닝 비교·민감도 분석·LLM 채점이 열린다 (LLM 은 부르지 않는다)
   - 규격 vs 실제 보기의 비율이 model.py 를 직접 부른 값과 같고, 위험 기준을 바꿔도 오류가 없다
   - 보이드를 켜고 핫스팟 위로 옮기면 경고가 뜬다
   - 정답 확인 버튼이 해석을 돌리고 기록을 남긴다
@@ -60,7 +60,7 @@ def main():
     at = AppTest.from_file(APP, default_timeout=TIMEOUT).run()
     no_exception(at, "처음 열기")
     view = at.radio(key="view")
-    check("보기 8개", len(view.options) == 8, str(view.options))
+    check("보기 5개", len(view.options) == 5, str(view.options))
     check("사이드바를 쓰지 않는다", len(at.sidebar.children) == 0)
 
     s = M.Surrogate()
@@ -135,6 +135,42 @@ def main():
         sl = next(x for x in at.slider if x.label.startswith(label))
         sl.set_value(val).run()
     no_exception(at, "범위 끝 값")
+
+    # 온도를 낮추려면 (메인 화면)
+    at2 = AppTest.from_file(APP, default_timeout=TIMEOUT).run()
+    check("온도를 낮추려면 목록이 나온다", "TIM 열전도율 올리기" in texts(at2))
+    at2.toggle[0].set_value(True).run()
+    next(sl for sl in at2.slider if sl.key == "void_center").set_value(5.0).run()
+    no_exception(at2, "보이드 켜고 온도 낮추기 목록")
+    check("보이드가 있으면 '보이드 없애기' 가 나온다", "보이드 없애기" in texts(at2))
+
+    # 맨 위 입력창이 조건을 바꾼 것처럼 pending_cond 를 넣으면 슬라이더가 따라가나 (LLM 은 부르지 않는다)
+    at3 = AppTest.from_file(APP, default_timeout=TIMEOUT).run()
+    want = M.prepare(dict(M.DEFAULT, q_w=10.0, tim_k=4.0, void_mm=2.0, void_center_mm=5.0))
+    at3.session_state["pending_cond"] = want
+    at3.run()
+    no_exception(at3, "입력창으로 조건 바꾸기")
+    check("슬라이더가 바뀐 조건을 따라간다",
+          at3.slider(key="c_q_w").value == 10.0 and at3.slider(key="c_tim_k").value == 4.0
+          and at3.toggle(key="c_has_void").value and abs(at3.slider(key="void_center").value - 5.0) < 1e-9)
+    check("바뀐 조건의 예측값이 model.py 와 같다", readout(at3, s.predict(want)["t_max"]),
+          "{:.2f}".format(s.predict(want)["t_max"]))
+
+    # 검증과 방법 안의 항목 4개 (LLM 은 부르지 않는다 → 요금 없음)
+    at2.radio(key="view").set_value("검증과 방법").run()
+    sec = at2.radio(key="method_sec")
+    check("검증 항목 4개", len(sec.options) == 4, str(sec.options))
+    for name in sec.options:
+        at2.radio(key="method_sec").set_value(name).run()
+        no_exception(at2, "검증 · " + name)
+    at2.radio(key="method_sec").set_value("딥러닝 비교").run()
+    check("딥러닝 비교에 세 모델 오차와 안 쓴 이유가 나온다",
+          "신경망 단독" in texts(at2) and "새 정보를 더하지 않아" in texts(at2))
+    at2.radio(key="method_sec").set_value("민감도 분석 (XAI)").run()
+    check("민감도 분석에 방열판 저항 문장과 온도 낮추기 검증이 나온다",
+          "사실상 0" in texts(at2) and "1등 손잡이" in texts(at2))
+    at2.radio(key="method_sec").set_value("LLM 채점").run()
+    check("LLM 채점에 명령 표가 나온다", "바꾸지 않음" in texts(at2))
 
     print("\n{}/{} 통과".format(sum(results), len(results)))
     return all(results)

@@ -127,6 +127,21 @@ html, body, [class*="st-"], .stMarkdown, button, input, textarea {
 .comp-legend { display:flex; flex-wrap:wrap; gap:4px 16px; justify-content:space-between; margin-top:8px; font-size:12.5px; color:var(--ink2); }
 .comp-legend b { font-family:var(--mono); font-weight:500; color:var(--ink); }
 
+.cmd-reply { background: var(--panel); border-radius: var(--r); padding: 10px 14px; font-size: 13.5px;
+  color: var(--ink); line-height: 1.6; margin: -4px 0 18px; }
+.cmd-reply b { color: var(--accent-text); margin-right: 6px; }
+.cmd-tools { display:block; font-family: var(--mono); font-size: 11.5px; color: var(--muted); margin-top: 4px; }
+
+.imp { margin: 8px 0 4px; max-width: 760px; }
+.imp-row { display:grid; grid-template-columns: 230px 1fr 76px; align-items:center; gap:14px; padding:6px 0;
+  border-bottom:1px solid var(--grid); font-size:13.5px; color:var(--ink); }
+.imp-row:first-child .imp-name { font-weight:700; }
+.imp-name i { font-style:normal; font-family:var(--mono); font-size:11.5px; color:var(--muted); margin-left:8px; }
+.imp-bar { height:8px; background: var(--panel); border-radius:4px; overflow:hidden; }
+.imp-bar span { display:block; height:100%; background: var(--accent); border-radius:4px; }
+.imp-num { font-family:var(--mono); text-align:right; }
+@media (max-width: 760px) { .imp-row { grid-template-columns: 1fr 70px; } .imp-bar { display:none; } }
+
 .group-h { font-size:14px; font-weight:700; color:var(--ink); margin: 0 0 6px; }
 
 .trio { display:grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 24px; margin: 6px 0 4px; }
@@ -274,24 +289,47 @@ def _options(lo, hi, step, n=None):
 SPOT_OPTIONS = sorted(set(_options(0.25, 10.0, 0.05, n=40)) | {1.0})
 TIM_OPTIONS = _options(*M.RANGES["tim_mm"], M.H_MM)
 
+def nearest(options, v):
+    return min(options, key=lambda o: abs(o - v))
+
+
+# 슬라이더 값은 session_state 에 둔다. 맨 위 입력창(LLM)이 조건을 바꾸면 위젯을 그리기 전에 여기서 옮겨 넣는다.
+_INIT = {"c_q_w": float(M.DEFAULT["q_w"]), "c_spot": 1.0, "c_tim_mm": round(M.DEFAULT["tim_mm"], 4),
+         "c_tim_k": float(M.DEFAULT["tim_k"]), "c_r_sink": float(M.DEFAULT["r_sink"]),
+         "c_has_void": False, "c_void_mm": 1.0}
+for _k, _v in _INIT.items():
+    st.session_state.setdefault(_k, _v)
+_pending = st.session_state.pop("pending_cond", None)
+if _pending:
+    st.session_state.c_q_w = round(_pending["q_w"], 1)
+    st.session_state.c_spot = nearest(SPOT_OPTIONS, _pending["spot_mm"])
+    st.session_state.c_tim_mm = nearest(TIM_OPTIONS, _pending["tim_mm"])
+    st.session_state.c_tim_k = round(_pending["tim_k"], 1)
+    st.session_state.c_r_sink = round(_pending["r_sink"] / 0.05) * 0.05
+    st.session_state.c_has_void = _pending["void_mm"] > 0
+    if _pending["void_mm"] > 0:
+        st.session_state.c_void_mm = round(_pending["void_mm"] / M.H_MM) * M.H_MM
+        st.session_state.void_center = _pending["void_center_mm"]
+
+cmdbox = st.container()
 top = st.container()
 panel = st.container(key="conditions")
 
 with panel:
     html('<div class="group-h">조건</div>')
     r1 = st.columns(4, gap="medium")
-    q_w = r1[0].slider("총 발열 (W)", *M.RANGES["q_w"], float(M.DEFAULT["q_w"]), 0.1)
-    spot = r1[1].select_slider("핫스팟 폭 (mm, 다이 가운데)", SPOT_OPTIONS, value=1.0)
-    tim_mm = r1[2].select_slider("TIM 두께 (mm)", TIM_OPTIONS, value=round(M.DEFAULT["tim_mm"], 4))
-    tim_k = r1[3].slider("TIM 열전도율 (W/m·K)", *M.RANGES["tim_k"], float(M.DEFAULT["tim_k"]), 0.1)
+    q_w = r1[0].slider("총 발열 (W)", *M.RANGES["q_w"], step=0.1, key="c_q_w")
+    spot = r1[1].select_slider("핫스팟 폭 (mm, 다이 가운데)", SPOT_OPTIONS, key="c_spot")
+    tim_mm = r1[2].select_slider("TIM 두께 (mm)", TIM_OPTIONS, key="c_tim_mm")
+    tim_k = r1[3].slider("TIM 열전도율 (W/m·K)", *M.RANGES["tim_k"], step=0.1, key="c_tim_k")
 
     r2 = st.columns(4, gap="medium")
-    r_sink = r2[0].slider("방열판 저항 (K/W)", *M.RANGES["r_sink"], float(M.DEFAULT["r_sink"]), 0.05)
+    r_sink = r2[0].slider("방열판 저항 (K/W)", *M.RANGES["r_sink"], step=0.05, key="c_r_sink")
     with r2[1]:
         st.write("")
-        has_void = st.toggle("TIM 보이드 넣기", value=False)
+        has_void = st.toggle("TIM 보이드 넣기", key="c_has_void")
     if has_void:
-        void_mm = r2[2].slider("보이드 폭 (mm)", *M.RANGES["void_mm"], 1.0, M.H_MM)
+        void_mm = r2[2].slider("보이드 폭 (mm)", *M.RANGES["void_mm"], step=M.H_MM, key="c_void_mm")
         lo, hi = void_mm / 2.0, M.WIDTH_MM - void_mm / 2.0
         # 처음 값은 3mm. 폭이 바뀌어 위치가 범위를 벗어나면 다이 안으로 옮긴다
         current = st.session_state.get("void_center", 3.0)
@@ -312,6 +350,46 @@ except ValueError as e:                                # 슬라이더로는 생�
     st.error(str(e))
     st.stop()
 cond = pred["cond"]
+
+
+# ── 맨 위 입력창: 말로 조건 바꾸기 (agent.command, 채점: eval_command.py) ──
+
+NAMES_KO = {"q_w": ("발열", "W"), "spot_mm": ("핫스팟", "mm"), "tim_mm": ("TIM 두께", "mm"),
+            "tim_k": ("TIM 열전도율", "W/m·K"), "r_sink": ("방열판 저항", "K/W"),
+            "void_mm": ("보이드 폭", "mm"), "void_center_mm": ("보이드 위치", "mm")}
+
+with cmdbox:
+    c1, c2 = st.columns([8, 1], gap="small", vertical_alignment="bottom")
+    text = c1.text_input("말로 조건 바꾸기", key="cmd_text", label_visibility="collapsed",
+                         placeholder="말로 바꾸거나 물어보세요. 예) 보이드 2 mm를 핫스팟 위에 넣어 봐 · TIM 열전도율 1 올려 · 왜 이렇게 뜨거워?")
+    if c2.button("실행", type="primary", key="cmd_go", width="stretch") and text.strip():
+        import agent as A
+        A._surrogate = s
+        try:
+            with st.spinner("LLM이 조건을 읽는 중"):
+                r = A.command(text.strip(), cond)
+        except SystemExit as e:
+            st.session_state.cmd_reply = {"error": str(e)}
+        except Exception as e:                                    # 네트워크·요금 등
+            st.session_state.cmd_reply = {"error": "LLM 호출 실패: {}".format(e)}
+        else:
+            changed = []
+            if r["new_cond"]:
+                changed = ["{} {:g}→{:g} {}".format(NAMES_KO[k][0], round(cond[k], 3), round(r["new_cond"][k], 3),
+                                                    NAMES_KO[k][1])
+                           for k in M.KEYS if abs(r["new_cond"][k] - cond[k]) > 1e-6
+                           and not (k == "void_center_mm" and r["new_cond"]["void_mm"] == 0)]
+                st.session_state.pending_cond = r["new_cond"]
+            st.session_state.cmd_reply = {"text": r["answer"], "changed": changed,
+                                          "tools": [c["tool"] for c in r["calls"]]}
+            st.rerun()
+    rep = st.session_state.get("cmd_reply")
+    if rep and "error" in rep:
+        html('<div class="note bad">{}</div>'.format(esc(rep["error"])))
+    elif rep:
+        html('<div class="cmd-reply">{}{}<span class="cmd-tools">LLM이 부른 도구: {}</span></div>'.format(
+            '<b>바뀐 조건</b> {}<br>'.format(esc(" · ".join(rep["changed"]))) if rep["changed"] else "",
+            esc(rep["text"]).replace("\n", "<br>"), esc(", ".join(rep["tools"]) or "없음")))
 
 
 # ── 판독 + 단면 ───────────────────────────────────────────────
@@ -394,12 +472,281 @@ with top:
         """.format(100 * rise_1d / total, 100 * extra / total, ACCENT, 100 * pred["half95"] / total, ACCENT,
                    rise_1d, pred["extra"], pred["half95"]))
 
+    # 온도를 낮추려면 (model.Surrogate.improvements, 검증: improve_check.py)
+    imp = s.improvements(cond)
+    if imp:
+        worst = max(abs(r["delta"]) for r in imp) or 1.0
+        rows_html = "".join(
+            '<div class="imp-row"><span class="imp-name">{}<i>{}</i></span>'
+            '<span class="imp-bar"><span style="width:{:.1f}%"></span></span>'
+            '<span class="imp-num">{:+.1f} ℃</span></div>'.format(
+                esc(r["name"]), esc(r["step"]), 100 * max(-r["delta"], 0) / worst, r["delta"])
+            for r in imp)
+        IC = load_json("improve_check.json")
+        check_txt = ("검증: 새 조건 {}개에서 온도 변화 평균 오차 {:.2f}℃, 1등이 2D 해석과 같은 경우 {}/{}.".format(
+            IC["n"], IC["mae_delta"], IC["top1_same"], IC["n"]) if IC else "")
+        close = len(imp) > 1 and imp[1]["delta"] - imp[0]["delta"] < max(imp[0]["half95"], imp[1]["half95"])
+        html('<div class="sec" style="margin-top:6px">온도를 낮추려면</div>'
+             '<div class="cap">패키징에서 바꿀 수 있는 것을 하나씩 <b>한 단계만</b> 바꿨을 때 예측 변화입니다. '
+             '한 단계 크기를 바꾸면 순위도 바뀔 수 있습니다. 발열량·핫스팟은 칩 설계가 정하므로 뺐습니다.</div>'
+             '<div class="imp">{}</div>'.format(rows_html))
+        if close:
+            html('<div class="note info">1등과 2등의 차이({:.1f}℃)가 AI의 95% 범위보다 작아 순위가 바뀔 수 있습니다. '
+                 '검증에서 1등이 틀린 2건이 모두 이런 경우였습니다. 중요한 결정이면 2D 해석으로 확인하세요.</div>'.format(
+                     imp[1]["delta"] - imp[0]["delta"]))
+        html('<div class="cap">{}</div>'.format(esc(check_txt)))
+    else:
+        html('<div class="sec" style="margin-top:6px">온도를 낮추려면</div>'
+             '<div class="cap">패키징 쪽 손잡이(TIM 열전도율·두께, 방열판 저항)가 모두 학습 범위 끝이고 보이드도 없어, '
+             '이 범위 안에서는 더 낮출 방법이 없습니다.</div>')
+
+
+# 검증: 딥러닝 비교 (nn_compare.py, disagree_check.py)
+
+def section_nn():
+    NC = load_json("nn_compare.json")
+    if not NC:
+        html('<div class="note info">결과 파일이 없습니다. python app/nn_compare.py 를 실행하세요.</div>')
+        return
+    gp, nb, nd = NC["gp_v2"], NC["nn_with_1d"], NC["nn_direct"]
+    html('<p class="lead"><b>머신러닝(가우시안 과정)</b>과 <b>딥러닝(은닉층 3개 신경망)</b>을 같은 학습 {}건, 같은 입력, '
+         '학습에 쓰지 않은 같은 새 조건 {}건으로 비교했습니다. 신경망 설정은 학습 데이터 교차검증으로만 골랐습니다.</p>'.format(
+             NC["n_train"], NC["n_fresh"]))
+    html("""<div class="trio">
+      <div>가우시안 과정 + 1D (머신러닝)<b>{:.2f} ℃</b></div>
+      <div>신경망 + 1D (딥러닝)<b>{:.2f} ℃</b></div>
+      <div>신경망 단독 (1D 없이)<b>{:.2f} ℃</b></div></div>
+      <div class="cap">새 조건 {}건의 평균 오차. 신경망은 시작값이 무작위라 시드 5개로 학습한 평균입니다.</div>""".format(
+        gp["fresh_mae"], nb["fresh_mae_mean"], nd["fresh_mae_mean"], NC["n_fresh"]))
+    html('<div class="note">1D 열저항 공식을 기준선으로 주면 같은 신경망의 오차가 <b>{:.2f}℃ → {:.2f}℃</b>, 약 {:.1f}배 줄었습니다. '
+         '데이터가 {}건으로 적어서 가우시안 과정이 신경망보다 조금 더 정확했습니다.</div>'.format(
+             nd["fresh_mae_mean"], nb["fresh_mae_mean"], nd["fresh_mae_mean"] / nb["fresh_mae_mean"], NC["n_train"]))
+
+    a, b = st.columns(2, gap="large")
+    with a:
+        html('<div class="sec">새 조건 평균 오차</div><div class="cap">막대 끝 선은 시드 5개의 최소~최대.</div>')
+        names = ["가우시안 과정 + 1D", "신경망 + 1D", "신경망 단독"]
+        vals = [gp["fresh_mae"], nb["fresh_mae_mean"], nd["fresh_mae_mean"]]
+        lo = [0.0, nb["fresh_mae_mean"] - nb["fresh_mae_min"], nd["fresh_mae_mean"] - nd["fresh_mae_min"]]
+        hi = [0.0, nb["fresh_mae_max"] - nb["fresh_mae_mean"], nd["fresh_mae_max"] - nd["fresh_mae_mean"]]
+        fig = go.Figure(go.Bar(x=vals, y=names, orientation="h", marker_color=[ACCENT, BLUE, "#a8a7a1"],
+                               error_x=dict(type="data", array=hi, arrayminus=lo, color=INK2, thickness=1.2, width=5),
+                               text=["{:.2f}℃".format(v) for v in vals], textposition="outside",
+                               cliponaxis=False, hovertemplate="%{y}: %{x:.3f}℃<extra></extra>"))
+        style(fig, 260)
+        fig.update_yaxes(autorange="reversed")
+        fig.update_xaxes(title=dict(text="평균 절대 오차 (℃)", font=dict(size=12)), range=[0, max(vals) * 1.3])
+        chart(fig)
+    with b:
+        html('<div class="sec">규제 세기와 교차검증 오차</div>'
+             '<div class="cap">신경망 + 1D. 규제가 약하면 학습 데이터를 외워서 오차가 커집니다.</div>')
+        fig = go.Figure()
+        for hidden, color in ((32, "#86b6ef"), (64, BLUE)):
+            rows = [r for r in nb["cv_table"] if r["hidden"][0] == hidden]
+            fig.add_trace(go.Scatter(x=[r["alpha"] for r in rows], y=[r["cv_mae"] for r in rows], mode="lines+markers",
+                                     name="층마다 {}개".format(hidden), line=dict(color=color, width=2),
+                                     hovertemplate="규제 %{x:g}: %{y:.3f}℃<extra></extra>"))
+        style(fig, 260, legend=True)
+        fig.update_xaxes(type="log", title=dict(text="규제 세기 (alpha)", font=dict(size=12)))
+        fig.update_yaxes(title=dict(text="교차검증 오차 (℃)", font=dict(size=12)))
+        chart(fig)
+
+    html('<div class="sec">지금 조건에서 두 모델 비교</div>'
+         '<div class="cap">위 조건 패널 값으로 두 모델이 각각 예측합니다. 실제 2D 해석으로 누가 더 가까운지 확인할 수 있습니다.</div>')
+    N, net = get_nn()
+    nn_t = float(N.to_t_max([dict(cond, t_1d=pred["t_1d"])],
+                            net.predict(N.x_with_baseline([cond])), True)[0])
+    real = st.session_state.get("nn_real")
+    real_t = real["t"] if real and real["cond"] == cond else None
+    html("""<div class="trio">
+      <div>가우시안 과정 예측<b>{:.2f} ℃</b></div>
+      <div>신경망 예측<b>{:.2f} ℃</b></div>
+      <div>실제 2D 해석<b>{}</b></div></div>""".format(
+        pred["t_max"], nn_t, "{:.2f} ℃".format(real_t) if real_t is not None else "—"))
+    if st.button("2D 해석으로 확인", type="primary", key="nn_check"):
+        with st.spinner("2D 해석 중"):
+            st.session_state.nn_real = {"cond": cond, "t": M.run_2d(cond)["t_max"]}
+        st.rerun()
+    if real_t is not None:
+        html('<div class="cap">오차: 가우시안 과정 {:+.2f}℃, 신경망 {:+.2f}℃</div>'.format(
+            round(pred["t_max"] - real_t, 2) + 0.0, round(nn_t - real_t, 2) + 0.0))   # +0.0: -0.00 방지
+    html('<div class="cap" style="margin-top:10px">한계: 신경망 크기는 두 가지(층마다 32·64개)만 시험했습니다. '
+         '더 찾으면 신경망이 나아질 수 있습니다.</div>')
+
+    DC = load_json("disagree_check.json")
+    if DC:
+        c, ph = DC["caught"], DC["posthoc_same_count"]
+        html('<div class="sec">신경망을 메인 화면에 쓰지 않은 이유</div>'
+             '<p class="lead">두 모델의 <b>의견 차이</b>를 "이 예측 믿어도 되나" 신호로 쓸 수 있는지 새 조건 {}건에서 쟀습니다. '
+             '큰 오차 {}건 중 의견 차이 상위 20%가 {}건, 가우시안 과정의 95% 범위 상위 20%가 {}건을 잡았습니다. '
+             '둘을 같이 쓰면 {}건이었지만 {}건을 표시한 결과였고, 95% 범위 혼자 같은 {}건을 표시해도 {}건이었습니다. '
+             '<b>의견 차이는 새 정보를 더하지 않아</b> 메인 화면에는 원래 있던 95% 범위만 씁니다.</p>'
+             '<div class="cap">미리 정한 합격 기준은 표시 수가 늘어나는 점을 놓쳐 형식상 통과했고, 결과를 본 뒤 같은 수로 다시 비교해 '
+             '결론을 바꿨습니다 (app/disagree_check.py).</div>'.format(
+                 DC["n"], DC["n_big"], c["의견 차이 d"]["caught_big"], c["범위 폭 h"]["caught_big"],
+                 ph["d_or_h"], ph["n_flagged"], ph["n_flagged"], ph["h_alone"]))
+
+
+# 검증: 민감도 분석 (sensitivity.py, improve_check.py)
+
+def section_xai():
+    SE = load_json("sensitivity.json")
+    if not SE:
+        html('<div class="note info">결과 파일이 없습니다. python app/sensitivity.py 를 실행하세요.</div>')
+        return
+    html('<p class="lead"><b>설명 가능한 AI (순열 중요도).</b> 새 조건 {}건에서 입력 하나만 행끼리 무작위로 섞고, '
+         '예측 오차가 얼마나 늘어나는지 잽니다. 많이 늘수록 모델이 그 입력에 많이 기댑니다. 입력마다 {}번 섞은 평균입니다.</p>'.format(
+             list(SE["groups"].values())[0], SE["repeats"]))
+    i1, i2 = st.columns([1, 1], gap="large")
+    model_name = i1.radio("모델", [k for k in SE if k.startswith(("A ", "B "))], horizontal=True, key="se_model")
+    mode = i2.radio("보기", ["ML만", "전체"], horizontal=True, key="se_mode",
+                    help="ML만: 1D 값을 고정하고 머신러닝이 배운 '추가 온도' 만 봅니다. 전체: 1D 공식까지 포함합니다.")
+    res = SE[model_name]["rise"]["ml_only" if mode == "ML만" else "full"]
+    groups = list(SE["groups"].keys())
+    g_all, g_ov, g_rest = groups
+    order = sorted(res, key=lambda k: res[k][g_all])
+
+    fig = go.Figure()
+    for g, color in ((g_ov, ACCENT), (g_rest, "#a8a7a1")):
+        fig.add_trace(go.Bar(y=[SE["names"][k] for k in order], x=[res[k][g] for k in order], orientation="h",
+                             name="보이드가 핫스팟과 겹침" if g == g_ov else "나머지 (떨어짐·없음)",
+                             marker_color=color, hovertemplate="%{y}: +%{x:.2f}℃<extra></extra>"))
+    style(fig, 380, legend=True)
+    fig.update_layout(barmode="group", bargap=0.25)
+    fig.update_xaxes(title=dict(text="섞었을 때 늘어난 평균 오차 (℃)", font=dict(size=12)))
+    chart(fig)
+
+    ml = SE[model_name]["rise"]["ml_only"]
+    a, b = st.columns(2, gap="large")
+    with a:
+        html('<div class="note">보이드는 <b>핫스팟과 겹칠 때만</b> 중요합니다. 보이드 폭의 중요도가 겹친 경우 +{:.1f}℃, '
+             '나머지 +{:.1f}℃로 약 {:.0f}배 차이입니다. 160건 전체로 평균을 내면 이 차이가 묻힙니다.</div>'.format(
+                 ml["void_mm"][g_ov], ml["void_mm"][g_rest], ml["void_mm"][g_ov] / ml["void_mm"][g_rest]))
+    with b:
+        html('<div class="note info">ML만 보기에서 <b>방열판 저항</b>의 중요도는 {:.2f}℃로 사실상 0입니다. 방열판 저항은 칩 전체 온도를 '
+             '똑같이 올릴 뿐이라 1D 공식이 모두 설명하고, 머신러닝이 맡은 "옆으로 퍼지는 열" 과는 관계가 없어야 맞습니다. '
+             '모델이 데이터에서 이 물리를 스스로 찾았습니다.</div>'.format(abs(ml["r_sink"][g_all])))
+    html('<div class="cap" style="margin-top:10px">한계: "모델이 무엇에 기대는가" 를 잰 것이지 실제 물리를 직접 잰 것은 아닙니다. '
+         '가우시안 과정과 신경망이 같은 순위를 냈습니다. 중요도는 학습 데이터의 범위에 따라 달라집니다.</div>')
+
+    IC = load_json("improve_check.json")
+    if IC:
+        html('<div class="sec">메인 화면의 "온도를 낮추려면" 검증</div>'
+             '<p class="lead">위 그래프는 160건 전체의 평균이고, 메인 화면은 <b>지금 조건 하나</b>에서 손잡이를 한 단계씩 바꿔 봅니다. '
+             '새 조건 {}개에서 {}개 변화를 2D 해석과 비교했더니 온도 변화 평균 오차 <b>{:.2f}℃</b>, '
+             '1등 손잡이가 2D 해석과 같은 경우 <b>{}/{}</b>였습니다. AI 1등을 따랐을 때 얻는 효과는 최선의 평균 {:.0%}였습니다.</p>'
+             '<div class="cap">합격 기준(오차 0.3℃ 이하, 1등 일치 24/30 이상)은 결과 전에 정했습니다. 1등이 틀린 2건은 모두 '
+             '1·2등 차이가 AI 95% 범위보다 작은 경우였고, 그래서 그런 경우 화면에 확인 안내를 띄웁니다 (이 규칙은 결과를 본 뒤 정함).</div>'.format(
+                 IC["n"], IC["n_compared"], IC["mae_delta"], IC["top1_same"], IC["n"], IC["effect_ratio_mean"]))
+
+
+# 검증: LLM 채점 (eval_agent.py, eval_command.py)
+
+def section_llm():
+    html('<p class="lead"><b>LLM 에이전트.</b> 맨 위 입력창에 말로 쓰면 LLM이 <b>어떤 도구를 어떤 조건으로 부를지</b>만 정합니다. '
+         '조건을 바꾸라는 말이면 슬라이더를 움직이고(set_conditions), 질문이면 대리모델·2D 해석·허용 보이드 도구를 불러 답합니다. '
+         '온도는 LLM이 직접 계산하지 않습니다.</p>')
+    EC = load_json("eval_command.json")
+    EV = load_json("eval_agent.json")
+    if EC:
+        html('<div class="sec">조건 바꾸기 명령 {} / {}</div>'
+             '<div class="cap">시작 조건(기본값 + 보이드 1 mm, 중심 3 mm)에서 명령마다 바뀐 조건 7개가 정답과 모두 같아야 맞음. '
+             '범위 밖 명령과 질문만 한 경우는 조건을 바꾸지 않아야 맞음. 합격 기준 9개 이상은 결과 전에 정했습니다.</div>'.format(
+                 EC["correct"], EC["total"]))
+        rows = "".join('<tr><td>{}</td><td>{}</td><td>{}</td></tr>'.format(
+            "맞음" if r["correct"] else "틀림", esc(r["command"]),
+            esc(", ".join("{} {:g}→{:g}".format(NAMES_KO[k][0], EC["start"][k], r["got"][k])
+                          for k in M.KEYS if abs(r["got"][k] - EC["start"][k]) > 1e-6
+                          and not (k == "void_center_mm" and r["got"]["void_mm"] == 0)) if r["got"] else "바꾸지 않음"))
+            for r in EC["results"])
+        html('<table class="tbl"><tr><th>결과</th><th>명령</th><th>바뀐 조건</th></tr>{}</table>'.format(rows))
+    if EV:
+        kinds = " · ".join("{} {}/{}".format(k, a_, b_) for k, (a_, b_) in EV["by_kind"].items())
+        made_up = sum(r["made_up"] for r in EV["results"])
+        html("""<div class="sec">질문 답하기 {} / {}</div><div class="trio">
+          <div>정답<b>{} / {}</b></div>
+          <div>도구 없이 지어낸 답<b>{} 개</b></div>
+          <div>모델<b style="font-size:17px">{}</b></div></div>
+          <div class="cap">{}. 온도는 2D 해석과 {:g}℃ 이내, 허용 보이드는 {:g}mm 이내면 정답.</div>""".format(
+            EV["correct"], EV["total"], EV["correct"], EV["total"], made_up, esc(EV["model"]), kinds,
+            EV["tol_c"], EV["tol_mm"]))
+    html('<div class="cap" style="margin-top:10px">한계: 명령과 질문은 직접 만든 비교적 분명한 표현입니다. '
+         '"좀 더 뜨겁게" 같은 애매한 표현은 시험하지 않았습니다.</div>')
+
+
+# 검증: 웹 도구와 모델
+
+def section_web():
+    a, b = st.columns([5, 7], gap="large")
+    with a:
+        if V:
+            html('<div class="read-label">웹 도구 검증</div><div class="score">{} / {}</div>'
+                 '<div class="cap">{} 측정. 합격 기준은 결과를 보기 전에 정했습니다.</div>'.format(
+                     V["passed"], V["total"], V["date"]))
+        else:
+            html('<div class="note info">검증 결과 파일이 없습니다. python app/validate_backend.py 를 실행하세요.</div>')
+    with b:
+        html("""<p class="lead">다이(Si 0.1mm), TIM, 리드(Cu 1mm) 단면을 0.025mm 격자로 나눈 <b>2D 열해석</b>이 정답 역할을 합니다.
+        해석기는 해석해가 있는 1·2층 구조에서 발표된 확산 저항 해석해와 0.11% 이내로 일치합니다. 조건 7개를 바꾼 해석 800건으로
+        <b>최고 온도 = 1D 공식 + 발열 × AI가 배운 1W당 추가 온도</b> 모델을 학습했습니다.</p>""")
+
+    if V:
+        groups = [("같은 답을 내나", [0, 1, 9]), ("입력을 지키나", [2, 3, 4, 5]),
+                  ("얼마나 맞나", [6, 10]), ("빠르고 안전한가", [7, 8, 11])]
+        cards = []
+        for title, idx in groups:
+            rows = "".join(
+                '<div class="check-row"><span class="tag{}">{}</span><span>{}<span class="d">{}</span></span></div>'.format(
+                    "" if V["checks"][i]["ok"] else " bad", "통과" if V["checks"][i]["ok"] else "실패",
+                    esc(V["checks"][i]["name"]), esc(V["checks"][i]["detail"]))
+                for i in idx if i < len(V["checks"]))
+            cards.append('<div class="check-card"><div class="ch">{}</div>{}</div>'.format(title, rows))
+        html('<div class="checks">{}</div>'.format("".join(cards)))
+
+        html('<div class="sec">조건별 오차</div><div class="cap">검증 160건. 이 화면이 쓰는 모델 기준.</div>')
+        head = '<th>그룹</th><th class="n">건수</th><th class="n">평균 오차 ℃</th><th class="n">최대 ℃</th><th class="n">범위 적중</th>'
+        body = "".join('<tr><td>{}</td><td class="n">{}</td><td class="n">{:.2f}</td><td class="n">{:.2f}</td>'
+                       '<td class="n">{:.0%}</td></tr>'.format(esc(k), g["n"], g["mae"], g["max"], g["coverage"])
+                       for k, g in V["groups"].items())
+        html('<table class="tbl"><tr>{}</tr>{}</table>'.format(head, body))
+
+    if M.os.path.exists(M.SETTINGS_V2):
+        with open(M.SETTINGS_V2, encoding="utf-8") as f:
+            v2 = M.json.load(f)
+        t1, t2_ = v2["test"]["v1 (논문 설정)"], v2["test"]["v2"]
+        html('<div class="sec">모델 v1과 v2</div>'
+             '<p class="lead">v1(논문 모델)은 보이드의 폭과 핫스팟 중심과의 거리만 알았습니다. '
+             '보이드가 핫스팟에 닿는 순간 온도가 꺾여 오르는데, v1은 이 꺾임을 매끄럽게 뭉갰습니다. '
+             'v2는 <b>보이드가 핫스팟을 얼마나 덮는지</b>를 조건 정보로 더했습니다.</p>')
+        head = ('<th>모델</th><th class="n">교차검증 평균 ℃</th><th class="n">검증 평균 ℃</th>'
+                '<th class="n">검증 최대 ℃</th><th class="n">핫스팟 덮음 평균 ℃</th>')
+        body = "".join('<tr><td>{}</td><td class="n">{:.2f}</td><td class="n">{:.2f}</td><td class="n">{:.2f}</td>'
+                       '<td class="n">{:.2f}</td></tr>'.format(name, cvv["mae"], t["mae"], t["max"], t["covers_mae"])
+                       for name, cvv, t in [("v1 (논문)", v2["cv"]["v1"], t1), ("v2", v2["cv"]["v2"], t2_)])
+        html('<table class="tbl"><tr>{}</tr>{}</table>'.format(head, body))
+        html('<div class="cap">설정은 학습 640건 교차검증으로만 골랐고 검증 160건은 마지막에 한 번 채점했습니다. '
+             '다만 v2의 착안은 검증셋 오차 분석을 본 뒤에 나왔습니다.</div>')
+
+    html('<div class="sec">연구 그림</div>')
+    figs = [("validation_spreading.png", "외부 검증. 발표된 해석해와 비교"),
+            ("learning_curve.png", "학습 곡선. 1D를 결합하면 필요한 데이터가 절반 (v1 기준)"),
+            ("error_analysis.png", "오차 분석. 보이드가 핫스팟을 덮을 때 오차가 몰린다 (v1 기준)")]
+    gcols = st.columns(3, gap="medium")
+    for col, (name, cap) in zip(gcols, figs):
+        col.image(M.os.path.join(M.ROOT, "figures", name), width="stretch")
+        with col:
+            html('<div class="cap">{}</div>'.format(esc(cap)))
+
+    html('<div class="sec">한계</div><p class="lead">2차원 단면 해석이라 보이드가 깊이 방향으로 이어진 띠로 계산되어, '
+         '실제 원형 보이드보다 영향이 크게 나옵니다. 실측과 비교하지 않았고, 재료 물성은 온도에 따라 변하지 않는다고 '
+         '가정했습니다. 학습 범위 밖 조건은 예측하지 않습니다.</p>')
+
+
 
 # ── 보기 전환 ─────────────────────────────────────────────────
 
 st.write("")
-VIEWS = ["정답 확인", "보이드 위험 지도", "허용 보이드 크기", "규격 vs 실제",
-         "딥러닝 비교", "민감도 분석", "AI에게 묻기", "검증과 방법"]
+VIEWS = ["정답 확인", "보이드 위험 지도", "허용 보이드 크기", "규격 vs 실제", "검증과 방법"]
 if st.query_params.get("view") == "method":           # 머리의 '방법과 검증' 링크
     st.session_state.view = VIEWS[-1]
     del st.query_params["view"]
@@ -688,246 +1035,13 @@ elif view == "규격 vs 실제":
              '2D 단면이라 보이드 영향이 실제 원형 보이드보다 크게 나옵니다.</div>')
 
 
-# 보기 5: 딥러닝 비교 (nn_compare.py)
-
-elif view == "딥러닝 비교":
-    NC = load_json("nn_compare.json")
-    if not NC:
-        html('<div class="note info">결과 파일이 없습니다. python app/nn_compare.py 를 실행하세요.</div>')
-        st.stop()
-    gp, nb, nd = NC["gp_v2"], NC["nn_with_1d"], NC["nn_direct"]
-    html('<p class="lead"><b>머신러닝(가우시안 과정)</b>과 <b>딥러닝(은닉층 3개 신경망)</b>을 같은 학습 {}건, 같은 입력, '
-         '학습에 쓰지 않은 같은 새 조건 {}건으로 비교했습니다. 신경망 설정은 학습 데이터 교차검증으로만 골랐습니다.</p>'.format(
-             NC["n_train"], NC["n_fresh"]))
-    html("""<div class="trio">
-      <div>가우시안 과정 + 1D (머신러닝)<b>{:.2f} ℃</b></div>
-      <div>신경망 + 1D (딥러닝)<b>{:.2f} ℃</b></div>
-      <div>신경망 단독 (1D 없이)<b>{:.2f} ℃</b></div></div>
-      <div class="cap">새 조건 {}건의 평균 오차. 신경망은 시작값이 무작위라 시드 5개로 학습한 평균입니다.</div>""".format(
-        gp["fresh_mae"], nb["fresh_mae_mean"], nd["fresh_mae_mean"], NC["n_fresh"]))
-    html('<div class="note">1D 열저항 공식을 기준선으로 주면 같은 신경망의 오차가 <b>{:.2f}℃ → {:.2f}℃</b>, 약 {:.1f}배 줄었습니다. '
-         '데이터가 {}건으로 적어서 가우시안 과정이 신경망보다 조금 더 정확했습니다.</div>'.format(
-             nd["fresh_mae_mean"], nb["fresh_mae_mean"], nd["fresh_mae_mean"] / nb["fresh_mae_mean"], NC["n_train"]))
-
-    a, b = st.columns(2, gap="large")
-    with a:
-        html('<div class="sec">새 조건 평균 오차</div><div class="cap">막대 끝 선은 시드 5개의 최소~최대.</div>')
-        names = ["가우시안 과정 + 1D", "신경망 + 1D", "신경망 단독"]
-        vals = [gp["fresh_mae"], nb["fresh_mae_mean"], nd["fresh_mae_mean"]]
-        lo = [0.0, nb["fresh_mae_mean"] - nb["fresh_mae_min"], nd["fresh_mae_mean"] - nd["fresh_mae_min"]]
-        hi = [0.0, nb["fresh_mae_max"] - nb["fresh_mae_mean"], nd["fresh_mae_max"] - nd["fresh_mae_mean"]]
-        fig = go.Figure(go.Bar(x=vals, y=names, orientation="h", marker_color=[ACCENT, BLUE, "#a8a7a1"],
-                               error_x=dict(type="data", array=hi, arrayminus=lo, color=INK2, thickness=1.2, width=5),
-                               text=["{:.2f}℃".format(v) for v in vals], textposition="outside",
-                               cliponaxis=False, hovertemplate="%{y}: %{x:.3f}℃<extra></extra>"))
-        style(fig, 260)
-        fig.update_yaxes(autorange="reversed")
-        fig.update_xaxes(title=dict(text="평균 절대 오차 (℃)", font=dict(size=12)), range=[0, max(vals) * 1.3])
-        chart(fig)
-    with b:
-        html('<div class="sec">규제 세기와 교차검증 오차</div>'
-             '<div class="cap">신경망 + 1D. 규제가 약하면 학습 데이터를 외워서 오차가 커집니다.</div>')
-        fig = go.Figure()
-        for hidden, color in ((32, "#86b6ef"), (64, BLUE)):
-            rows = [r for r in nb["cv_table"] if r["hidden"][0] == hidden]
-            fig.add_trace(go.Scatter(x=[r["alpha"] for r in rows], y=[r["cv_mae"] for r in rows], mode="lines+markers",
-                                     name="층마다 {}개".format(hidden), line=dict(color=color, width=2),
-                                     hovertemplate="규제 %{x:g}: %{y:.3f}℃<extra></extra>"))
-        style(fig, 260, legend=True)
-        fig.update_xaxes(type="log", title=dict(text="규제 세기 (alpha)", font=dict(size=12)))
-        fig.update_yaxes(title=dict(text="교차검증 오차 (℃)", font=dict(size=12)))
-        chart(fig)
-
-    html('<div class="sec">지금 조건에서 두 모델 비교</div>'
-         '<div class="cap">위 조건 패널 값으로 두 모델이 각각 예측합니다. 실제 2D 해석으로 누가 더 가까운지 확인할 수 있습니다.</div>')
-    N, net = get_nn()
-    nn_t = float(N.to_t_max([dict(cond, t_1d=pred["t_1d"])],
-                            net.predict(N.x_with_baseline([cond])), True)[0])
-    real = st.session_state.get("nn_real")
-    real_t = real["t"] if real and real["cond"] == cond else None
-    html("""<div class="trio">
-      <div>가우시안 과정 예측<b>{:.2f} ℃</b></div>
-      <div>신경망 예측<b>{:.2f} ℃</b></div>
-      <div>실제 2D 해석<b>{}</b></div></div>""".format(
-        pred["t_max"], nn_t, "{:.2f} ℃".format(real_t) if real_t is not None else "—"))
-    if st.button("2D 해석으로 확인", type="primary", key="nn_check"):
-        with st.spinner("2D 해석 중"):
-            st.session_state.nn_real = {"cond": cond, "t": M.run_2d(cond)["t_max"]}
-        st.rerun()
-    if real_t is not None:
-        html('<div class="cap">오차: 가우시안 과정 {:+.2f}℃, 신경망 {:+.2f}℃</div>'.format(
-            round(pred["t_max"] - real_t, 2) + 0.0, round(nn_t - real_t, 2) + 0.0))   # +0.0: -0.00 방지
-    html('<div class="cap" style="margin-top:10px">한계: 신경망 크기는 두 가지(층마다 32·64개)만 시험했습니다. '
-         '더 찾으면 신경망이 나아질 수 있습니다.</div>')
-
-
-# 보기 6: 민감도 분석 (sensitivity.py)
-
-elif view == "민감도 분석":
-    SE = load_json("sensitivity.json")
-    if not SE:
-        html('<div class="note info">결과 파일이 없습니다. python app/sensitivity.py 를 실행하세요.</div>')
-        st.stop()
-    html('<p class="lead"><b>설명 가능한 AI (순열 중요도).</b> 새 조건 {}건에서 입력 하나만 행끼리 무작위로 섞고, '
-         '예측 오차가 얼마나 늘어나는지 잽니다. 많이 늘수록 모델이 그 입력에 많이 기댑니다. 입력마다 {}번 섞은 평균입니다.</p>'.format(
-             list(SE["groups"].values())[0], SE["repeats"]))
-    i1, i2 = st.columns([1, 1], gap="large")
-    model_name = i1.radio("모델", [k for k in SE if k.startswith(("A ", "B "))], horizontal=True, key="se_model")
-    mode = i2.radio("보기", ["ML만", "전체"], horizontal=True, key="se_mode",
-                    help="ML만: 1D 값을 고정하고 머신러닝이 배운 '추가 온도' 만 봅니다. 전체: 1D 공식까지 포함합니다.")
-    res = SE[model_name]["rise"]["ml_only" if mode == "ML만" else "full"]
-    groups = list(SE["groups"].keys())
-    g_all, g_ov, g_rest = groups
-    order = sorted(res, key=lambda k: res[k][g_all])
-
-    fig = go.Figure()
-    for g, color in ((g_ov, ACCENT), (g_rest, "#a8a7a1")):
-        fig.add_trace(go.Bar(y=[SE["names"][k] for k in order], x=[res[k][g] for k in order], orientation="h",
-                             name="보이드가 핫스팟과 겹침" if g == g_ov else "나머지 (떨어짐·없음)",
-                             marker_color=color, hovertemplate="%{y}: +%{x:.2f}℃<extra></extra>"))
-    style(fig, 380, legend=True)
-    fig.update_layout(barmode="group", bargap=0.25)
-    fig.update_xaxes(title=dict(text="섞었을 때 늘어난 평균 오차 (℃)", font=dict(size=12)))
-    chart(fig)
-
-    ml = SE[model_name]["rise"]["ml_only"]
-    a, b = st.columns(2, gap="large")
-    with a:
-        html('<div class="note">보이드는 <b>핫스팟과 겹칠 때만</b> 중요합니다. 보이드 폭의 중요도가 겹친 경우 +{:.1f}℃, '
-             '나머지 +{:.1f}℃로 약 {:.0f}배 차이입니다. 160건 전체로 평균을 내면 이 차이가 묻힙니다.</div>'.format(
-                 ml["void_mm"][g_ov], ml["void_mm"][g_rest], ml["void_mm"][g_ov] / ml["void_mm"][g_rest]))
-    with b:
-        html('<div class="note info">ML만 보기에서 <b>방열판 저항</b>의 중요도는 {:.2f}℃로 사실상 0입니다. 방열판 저항은 칩 전체 온도를 '
-             '똑같이 올릴 뿐이라 1D 공식이 모두 설명하고, 머신러닝이 맡은 "옆으로 퍼지는 열" 과는 관계가 없어야 맞습니다. '
-             '모델이 데이터에서 이 물리를 스스로 찾았습니다.</div>'.format(abs(ml["r_sink"][g_all])))
-    html('<div class="cap" style="margin-top:10px">한계: "모델이 무엇에 기대는가" 를 잰 것이지 실제 물리를 직접 잰 것은 아닙니다. '
-         '가우시안 과정과 신경망이 같은 순위를 냈습니다. 중요도는 학습 데이터의 범위에 따라 달라집니다.</div>')
-
-
-# 보기 7: AI에게 묻기 (agent.py)
-
-elif view == "AI에게 묻기":
-    import agent as A
-    A._surrogate = s                                       # 화면이 이미 학습한 대리모델을 같이 쓴다
-    html('<p class="lead"><b>LLM 에이전트.</b> 말로 물으면 LLM이 질문을 읽고 <b>어떤 계산 도구를 어떤 조건으로 부를지</b>만 정합니다. '
-         '온도는 LLM이 직접 계산하지 않고 도구(대리모델, 2D 해석, 허용 보이드)가 계산합니다. 위 조건 패널과는 따로 움직입니다.</p>')
-
-    EV = load_json("eval_agent.json")
-    if EV:
-        kinds = " · ".join("{} {}/{}".format(k, a_, b_) for k, (a_, b_) in EV["by_kind"].items())
-        made_up = sum(r["made_up"] for r in EV["results"])
-        html("""<div class="trio">
-          <div>채점 질문 정답<b>{} / {}</b></div>
-          <div>도구 없이 지어낸 답<b>{} 개</b></div>
-          <div>모델<b style="font-size:17px">{}</b></div></div>
-          <div class="cap">{}. 온도는 2D 해석과 {:g}℃ 이내, 허용 보이드는 {:g}mm 이내면 정답.
-          질문 20개는 직접 만든 비교적 직접적인 질문이라, 애매한 질문에서의 성능은 시험하지 않았습니다.</div>""".format(
-            EV["correct"], EV["total"], made_up, esc(EV["model"]), kinds, EV["tol_c"], EV["tol_mm"]))
-
-    examples = ["폭 2 mm 보이드가 핫스팟 바로 위에 있으면 최고 온도는?",
-                "TIM 열전도율을 3에서 6으로 올리면 몇 도 내려가?",
-                "핫스팟 위 보이드는 40℃를 넘지 않으려면 몇 mm까지 괜찮아?",
-                "발열 30 W이면 몇 도야?"]
-    html('<div class="sec">질문하기</div><div class="cap">예시를 누르거나 직접 입력하세요. 한 번에 약 10초, 비용 약 1원.</div>')
-    ecols = st.columns(len(examples), gap="small")
-    for col, ex in zip(ecols, examples):
-        if col.button(ex, key="ex_" + ex, width="stretch"):
-            st.session_state.agent_q = ex
-    q = st.text_area("질문", key="agent_q", height=80, label_visibility="collapsed",
-                     placeholder="예: 보이드 1 mm가 핫스팟에서 3 mm 떨어져 있으면 최고 온도는?")
-    if st.button("묻기", type="primary", key="agent_ask") and q.strip():
-        try:
-            with st.spinner("LLM이 도구를 고르고 계산하는 중"):
-                st.session_state.agent_last = dict(A.ask(q.strip(), verbose=False), question=q.strip())
-        except SystemExit as e:                              # 키가 없을 때
-            html('<div class="note bad">{}</div>'.format(esc(e)))
-        except Exception as e:                               # 네트워크·요금 등
-            html('<div class="note bad">LLM 호출 실패: {}</div>'.format(esc(e)))
-
-    last = st.session_state.get("agent_last")
-    if last:
-        steps = "".join(
-            '<div class="check-row"><span class="tag">도구 {}</span><span>{}<span class="d">입력 {}<br>결과 {}</span></span></div>'.format(
-                i, esc(c["tool"]), esc(M.json.dumps(c["args"], ensure_ascii=False)),
-                esc(M.json.dumps(c["result"], ensure_ascii=False)))
-            for i, c in enumerate(last["calls"], 1)) or '<div class="cap">도구를 부르지 않았습니다.</div>'
-        a, b = st.columns([6, 5], gap="large")
-        with a:
-            html('<div class="read-label">질문</div><div class="answer-sub" style="margin-bottom:10px">{}</div>'
-                 '<div class="read-label">답</div><div class="lead" style="color:var(--ink)">{}</div>'.format(
-                     esc(last["question"]), esc(last["answer"]).replace("\n", "<br>")))
-        with b:
-            html('<div class="check-card"><div class="ch">LLM이 부른 도구</div>{}</div>'.format(steps))
-            html('<div class="cap">{} · 토큰 입력 {:,} / 출력 {:,} · {:.1f}초</div>'.format(
-                esc(last["model"]), last["tokens"]["in"], last["tokens"]["out"], last["seconds"]))
-
-
-# 보기 8: 검증과 방법
+# 보기 5: 검증과 방법
 
 else:
-    a, b = st.columns([5, 7], gap="large")
-    with a:
-        if V:
-            html('<div class="read-label">웹 도구 검증</div><div class="score">{} / {}</div>'
-                 '<div class="cap">{} 측정. 합격 기준은 결과를 보기 전에 정했습니다.</div>'.format(
-                     V["passed"], V["total"], V["date"]))
-        else:
-            html('<div class="note info">검증 결과 파일이 없습니다. python app/validate_backend.py 를 실행하세요.</div>')
-    with b:
-        html("""<p class="lead">다이(Si 0.1mm), TIM, 리드(Cu 1mm) 단면을 0.025mm 격자로 나눈 <b>2D 열해석</b>이 정답 역할을 합니다.
-        해석기는 해석해가 있는 1·2층 구조에서 발표된 확산 저항 해석해와 0.11% 이내로 일치합니다. 조건 7개를 바꾼 해석 800건으로
-        <b>최고 온도 = 1D 공식 + 발열 × AI가 배운 1W당 추가 온도</b> 모델을 학습했습니다.</p>""")
-
-    if V:
-        groups = [("같은 답을 내나", [0, 1, 9]), ("입력을 지키나", [2, 3, 4, 5]),
-                  ("얼마나 맞나", [6, 10]), ("빠르고 안전한가", [7, 8, 11])]
-        cards = []
-        for title, idx in groups:
-            rows = "".join(
-                '<div class="check-row"><span class="tag{}">{}</span><span>{}<span class="d">{}</span></span></div>'.format(
-                    "" if V["checks"][i]["ok"] else " bad", "통과" if V["checks"][i]["ok"] else "실패",
-                    esc(V["checks"][i]["name"]), esc(V["checks"][i]["detail"]))
-                for i in idx if i < len(V["checks"]))
-            cards.append('<div class="check-card"><div class="ch">{}</div>{}</div>'.format(title, rows))
-        html('<div class="checks">{}</div>'.format("".join(cards)))
-
-        html('<div class="sec">조건별 오차</div><div class="cap">검증 160건. 이 화면이 쓰는 모델 기준.</div>')
-        head = '<th>그룹</th><th class="n">건수</th><th class="n">평균 오차 ℃</th><th class="n">최대 ℃</th><th class="n">범위 적중</th>'
-        body = "".join('<tr><td>{}</td><td class="n">{}</td><td class="n">{:.2f}</td><td class="n">{:.2f}</td>'
-                       '<td class="n">{:.0%}</td></tr>'.format(esc(k), g["n"], g["mae"], g["max"], g["coverage"])
-                       for k, g in V["groups"].items())
-        html('<table class="tbl"><tr>{}</tr>{}</table>'.format(head, body))
-
-    if M.os.path.exists(M.SETTINGS_V2):
-        with open(M.SETTINGS_V2, encoding="utf-8") as f:
-            v2 = M.json.load(f)
-        t1, t2_ = v2["test"]["v1 (논문 설정)"], v2["test"]["v2"]
-        html('<div class="sec">모델 v1과 v2</div>'
-             '<p class="lead">v1(논문 모델)은 보이드의 폭과 핫스팟 중심과의 거리만 알았습니다. '
-             '보이드가 핫스팟에 닿는 순간 온도가 꺾여 오르는데, v1은 이 꺾임을 매끄럽게 뭉갰습니다. '
-             'v2는 <b>보이드가 핫스팟을 얼마나 덮는지</b>를 조건 정보로 더했습니다.</p>')
-        head = ('<th>모델</th><th class="n">교차검증 평균 ℃</th><th class="n">검증 평균 ℃</th>'
-                '<th class="n">검증 최대 ℃</th><th class="n">핫스팟 덮음 평균 ℃</th>')
-        body = "".join('<tr><td>{}</td><td class="n">{:.2f}</td><td class="n">{:.2f}</td><td class="n">{:.2f}</td>'
-                       '<td class="n">{:.2f}</td></tr>'.format(name, cvv["mae"], t["mae"], t["max"], t["covers_mae"])
-                       for name, cvv, t in [("v1 (논문)", v2["cv"]["v1"], t1), ("v2", v2["cv"]["v2"], t2_)])
-        html('<table class="tbl"><tr>{}</tr>{}</table>'.format(head, body))
-        html('<div class="cap">설정은 학습 640건 교차검증으로만 골랐고 검증 160건은 마지막에 한 번 채점했습니다. '
-             '다만 v2의 착안은 검증셋 오차 분석을 본 뒤에 나왔습니다.</div>')
-
-    html('<div class="sec">연구 그림</div>')
-    figs = [("validation_spreading.png", "외부 검증. 발표된 해석해와 비교"),
-            ("learning_curve.png", "학습 곡선. 1D를 결합하면 필요한 데이터가 절반 (v1 기준)"),
-            ("error_analysis.png", "오차 분석. 보이드가 핫스팟을 덮을 때 오차가 몰린다 (v1 기준)")]
-    gcols = st.columns(3, gap="medium")
-    for col, (name, cap) in zip(gcols, figs):
-        col.image(M.os.path.join(M.ROOT, "figures", name), width="stretch")
-        with col:
-            html('<div class="cap">{}</div>'.format(esc(cap)))
-
-    html('<div class="sec">한계</div><p class="lead">2차원 단면 해석이라 보이드가 깊이 방향으로 이어진 띠로 계산되어, '
-         '실제 원형 보이드보다 영향이 크게 나옵니다. 실측과 비교하지 않았고, 재료 물성은 온도에 따라 변하지 않는다고 '
-         '가정했습니다. 학습 범위 밖 조건은 예측하지 않습니다.</p>')
+    SECTIONS = {"웹 도구와 모델": section_web, "딥러닝 비교": section_nn,
+                "민감도 분석 (XAI)": section_xai, "LLM 채점": section_llm}
+    sec = st.radio("검증 항목", list(SECTIONS), horizontal=True, key="method_sec", label_visibility="collapsed")
+    SECTIONS[sec]()
 
 
 # ── 바닥 ──────────────────────────────────────────────────────

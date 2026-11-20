@@ -100,29 +100,29 @@ def surrogate():
     return _surrogate
 
 
-def _cond(args):
-    p = dict(M.DEFAULT)
+def _cond(args, base=None):
+    p = dict(base or M.DEFAULT)
     p.update({k: float(v) for k, v in args.items() if k in M.KEYS})
-    if p["void_mm"] > 0 and "void_center_mm" not in args:
+    if p["void_mm"] > 0 and "void_center_mm" not in args and not (base and base["void_mm"] > 0):
         p["void_center_mm"] = M.SPOT_CENTER_MM
     return p
 
 
-def call_tool(name, args):
-    """도구 실행. 결과는 LLM 에게 돌려줄 JSON 문자열."""
+def call_tool(name, args, base=None):
+    """도구 실행. 결과는 LLM 에게 돌려줄 JSON 문자열. base: 말하지 않은 조건의 값 (기본 M.DEFAULT)."""
     try:
         if name == "predict_temperature":
-            r = surrogate().predict(_cond(args))
+            r = surrogate().predict(_cond(args, base))
             out = {"조건": r["cond"], "최고온도_C": round(r["t_max"], 2), "95%범위_C": round(r["half95"], 2),
                    "1D계산_C_핫스팟과_보이드를_무시한_균일발열_값": round(r["t_1d"], 2), "보이드가_핫스팟을_덮음": r["covers_hotspot"],
                    "uncertain": r["uncertain"]}
         elif name == "run_simulation":
-            r = M.run_2d(_cond(args))
+            r = M.run_2d(_cond(args, base))
             out = {"조건": r["cond"], "최고온도_C": round(r["t_max"], 2), "계산시간_s": round(r["seconds"], 2)}
         elif name == "allowable_void":
-            base = _cond({k: v for k, v in args.items() if k in M.KEYS})
-            M.validate(M.snap(dict(base, void_mm=0.0)))
-            r = surrogate().allowable_void(base, float(args["center_mm"]), float(args["limit_c"]))
+            b = _cond({k: v for k, v in args.items() if k in M.KEYS}, base)
+            M.validate(M.snap(dict(b, void_mm=0.0)))
+            r = surrogate().allowable_void(b, float(args["center_mm"]), float(args["limit_c"]))
             meaning = {"none": "보이드가 없어도 한계를 넘는다", "below_min": "가장 작은 보이드(0.25mm)부터 한계를 넘는다",
                        "size": "이 폭까지 허용", "all": "넣을 수 있는 가장 큰 보이드까지 한계 이내"}
             out = {"판정": meaning[r["status"]], "허용_보이드_폭_mm": r["size_mm"],
@@ -144,14 +144,17 @@ def client():
     return OpenAI(base_url="https://openrouter.ai/api/v1", api_key=key)
 
 
-def ask(question, cli=None, model=None, verbose=True):
-    """질문 하나에 답한다. 돌려주는 값: 답 문장, 도구 호출 기록, 토큰 수, 걸린 시간."""
+def ask(question, cli=None, model=None, verbose=True, system=None, tools=None, handler=None):
+    """질문 하나에 답한다. 돌려주는 값: 답 문장, 도구 호출 기록, 토큰 수, 걸린 시간.
+    system·tools·handler 를 주지 않으면 채점(eval_agent.py)에 쓴 설정 그대로다."""
     cli = cli or client()
     model = model or os.environ.get("OPENROUTER_MODEL", DEFAULT_MODEL)
-    messages = [{"role": "system", "content": SYSTEM}, {"role": "user", "content": question}]
+    tools = tools or TOOLS
+    handler = handler or call_tool
+    messages = [{"role": "system", "content": system or SYSTEM}, {"role": "user", "content": question}]
     calls, tokens, t0 = [], {"in": 0, "out": 0}, time.time()
     for _ in range(MAX_TURNS):
-        resp = cli.chat.completions.create(model=model, messages=messages, tools=TOOLS, temperature=0)
+        resp = cli.chat.completions.create(model=model, messages=messages, tools=tools, temperature=0)
         if resp.usage:
             tokens["in"] += resp.usage.prompt_tokens
             tokens["out"] += resp.usage.completion_tokens
@@ -163,13 +166,58 @@ def ask(question, cli=None, model=None, verbose=True):
                          "tool_calls": [tc.model_dump() for tc in msg.tool_calls]})
         for tc in msg.tool_calls:
             args = json.loads(tc.function.arguments or "{}")
-            result = call_tool(tc.function.name, args)
+            result = handler(tc.function.name, args)
             calls.append({"tool": tc.function.name, "args": args, "result": json.loads(result)})
             if verbose:
                 print("  [도구] {} {} → {}".format(tc.function.name, json.dumps(args, ensure_ascii=False), result))
             messages.append({"role": "tool", "tool_call_id": tc.id, "content": result})
     return {"answer": "(도구 호출이 {}번을 넘어 멈춤)".format(MAX_TURNS), "calls": calls, "tokens": tokens,
             "seconds": time.time() - t0, "model": model}
+
+
+# ── 화면 맨 위 입력창: 말로 조건 바꾸기 ─────────────────────────
+
+COMMAND_RULES = """
+지금 화면의 조건: {current}
+
+규칙:
+1. 사용자가 조건을 바꾸라고 하면 set_conditions 를 불러라. 바꿀 값만 넣는다.
+   '두 배로', '1 올려', '2 mm 오른쪽으로' 같은 상대적 표현은 지금 화면의 조건을 기준으로 계산한다.
+   '보이드 없애' 는 void_mm=0 이다.
+2. 질문만 하면 set_conditions 를 부르지 마라. 온도가 필요하면 predict_temperature 를 불러라.
+   말하지 않은 조건은 지금 화면의 조건을 쓴다.
+3. 온도를 직접 계산하거나 추측하지 마라. 숫자는 도구 결과만 쓴다.
+4. set_conditions 가 범위 밖이라고 하면 다시 시도하지 말고 범위 밖이라 바꾸지 않았다고 말하라.
+5. 답은 한국어 2문장 이내.
+"""
+
+SET_TOOL = {"type": "function", "function": {
+    "name": "set_conditions",
+    "description": "화면의 조건 슬라이더를 바꾼다. 바꿀 값만 넣는다. 사용자가 조건을 바꾸라고 할 때만 부른다.",
+    "parameters": {"type": "object", "properties": _COND}}}
+
+
+def command(text, current, cli=None, model=None):
+    """화면 맨 위 입력창. current: 지금 화면의 조건 (prepare 를 거친 dict).
+    돌려주는 값: ask() 결과 + new_cond (set_conditions 가 성공했으면 바꾼 조건, 아니면 None)."""
+    holder = {"cond": None}
+
+    def handler(name, args):
+        if name != "set_conditions":
+            return call_tool(name, args, base=holder["cond"] or current)
+        try:
+            new = M.prepare(_cond(args, holder["cond"] or current))
+        except ValueError as e:
+            return json.dumps({"범위_밖": str(e), "바꾸지_않음": True}, ensure_ascii=False)
+        holder["cond"] = new
+        r = surrogate().predict(new)
+        return json.dumps({"적용한_조건": new, "예측_최고온도_C": round(r["t_max"], 2),
+                           "95%범위_C": round(r["half95"], 2)}, ensure_ascii=False)
+
+    system = SYSTEM.split("말하지 않은 조건은")[0] + COMMAND_RULES.format(
+        current=json.dumps({k: round(v, 4) for k, v in current.items()}, ensure_ascii=False))
+    r = ask(text, cli=cli, model=model, verbose=False, system=system, tools=TOOLS + [SET_TOOL], handler=handler)
+    return dict(r, new_cond=holder["cond"])
 
 
 if __name__ == "__main__":

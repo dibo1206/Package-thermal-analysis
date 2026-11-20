@@ -1,0 +1,37 @@
+{
+  "n": 160,
+  "n_big": 16,
+  "big_threshold": 1.1258101908902063,
+  "flag_rate": 0.2,
+  "spearman_d": 0.6472108285479902,
+  "spearman_h": 0.7524815422477441,
+  "caught": {
+    "의견 차이 d": {
+      "flagged": 32,
+      "caught_big": 13,
+      "mae_flagged": 1.150847174017704,
+      "mae_rest": 0.19973398791493907
+    },
+    "범위 폭 h": {
+      "flagged": 32,
+      "caught_big": 14,
+      "mae_flagged": 1.195546097154517,
+      "mae_rest": 0.1885592571307358
+    },
+    "d 또는 h": {
+      "flagged": 41,
+      "caught_big": 15,
+      "mae_flagged": 1.055365892481459,
+      "mae_rest": 0.16069796999948663
+    }
+  },
+  "pass1": true,
+  "pass2": true,
+  "posthoc_same_count": {
+    "n_flagged": 41,
+    "h_alone": 15,
+    "d_or_h": 15,
+    "adds_information": false
+  },
+  "d_flag_threshold": 0.8092491624293103
+}
