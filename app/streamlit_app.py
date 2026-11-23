@@ -299,6 +299,15 @@ _INIT = {"c_q_w": float(M.DEFAULT["q_w"]), "c_spot": 1.0, "c_tim_mm": round(M.DE
          "c_has_void": False, "c_void_mm": 1.0}
 for _k, _v in _INIT.items():
     st.session_state.setdefault(_k, _v)
+# 주소에 조건이 있으면 그 조건으로 연다 (조건 공유용, 예: ?void_mm=2&void_center_mm=5). 처음 한 번만.
+if not st.session_state.get("_qp_done"):
+    st.session_state._qp_done = True
+    if any(k in st.query_params for k in M.KEYS):
+        try:
+            st.session_state.pending_cond = M.prepare(
+                {k: float(st.query_params.get(k, M.DEFAULT[k])) for k in M.KEYS})
+        except (ValueError, TypeError):
+            pass                                            # 범위 밖이거나 숫자가 아니면 기본값으로 연다
 _pending = st.session_state.pop("pending_cond", None)
 if _pending:
     st.session_state.c_q_w = round(_pending["q_w"], 1)
