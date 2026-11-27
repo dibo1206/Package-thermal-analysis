@@ -1,3 +1,5 @@
 numpy>=1.26
-streamlit>=1.40
-plotly>=5.20
+streamlit>=1.60
+plotly>=6.0
+openai>=1.0
+python-dotenv>=1.0

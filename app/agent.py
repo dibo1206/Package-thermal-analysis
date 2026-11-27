@@ -11,7 +11,8 @@
   run_simulation       2D 유한차분 해석 — 약 1초, 정답에 가장 가까움
   allowable_void       최고 온도 한계를 넘지 않는 가장 큰 보이드 폭 (대리모델 기반)
 
-설정 (.env 파일 또는 환경변수, .env 는 .gitignore 에 들어 있어 GitHub 에 올라가지 않는다)
+설정 (.env 파일 또는 환경변수, .env 는 .gitignore 에 들어 있어 GitHub 에 올라가지 않는다.
+      Streamlit Community Cloud 에서는 앱 설정의 Secrets 에 넣으면 환경변수로 들어온다)
   OPENROUTER_API_KEY   필수
   OPENROUTER_MODEL     선택, 기본 anthropic/claude-haiku-5.5
 """
@@ -140,7 +141,8 @@ def client():
     load_dotenv(os.path.join(M.ROOT, ".env"))
     key = os.environ.get("OPENROUTER_API_KEY")
     if not key:
-        raise SystemExit("OPENROUTER_API_KEY 가 없습니다. thermal-analysis/.env 파일에 넣어 주세요.")
+        raise SystemExit("LLM 기능이 꺼져 있습니다 (API 키 없음). 슬라이더로 조건을 바꿔 주세요. "
+                         "직접 실행할 때는 .env 에 OPENROUTER_API_KEY 를 넣으면 켜집니다.")
     return OpenAI(base_url="https://openrouter.ai/api/v1", api_key=key)
 
 
